@@ -12,7 +12,7 @@ function init(options: Options = {}): void {
 }
 
 function sync(key: string) {
-    localforage.setItem(key.split('.')[0], dot.get(cache, key));
+    localforage.setItem((key.split('.')[0] || ''), dot.get(cache, key));
 }
 
 
@@ -33,7 +33,7 @@ const del = (key: string): void => {
 }
 
 const get = async (key: string, fallback: any = null): Promise<any> => {
-    if (has(key)) {
+    if (await has(key)) {
         return dot.get(cache, key);
     }
 
@@ -55,7 +55,7 @@ const has = async (key: string): Promise<boolean> => {
         return true;
     }
 
-    let value: any = await localforage.getItem(key.split('.')[0]);
+    let value: any = await localforage.getItem(key.split('.')[0] || '');
 
     if (value !== null) {
         set(key, value);
