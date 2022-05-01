@@ -6,7 +6,7 @@ let driver: any = localforage.LOCALSTORAGE;
 
 
 function init(options: Options = {}): void {
-    localforage.config(Object.assign({ name: 'dapp' }, options, { driver }));
+    localforage.config(Object.assign({ name: 'store' }, options, { driver }));
 }
 
 
