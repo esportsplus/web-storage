@@ -18,7 +18,7 @@ const clear = () => {
 };
 
 const del = (key: string): void => {
-    cache[key] = undefined;
+    dot.set(cache, key, undefined);
     localforage.removeItem(key);
 }
 
@@ -27,13 +27,16 @@ const get = async (key: string, fallback: any = null): Promise<any> => {
         return dot.get(cache, key);
     }
 
-    let value: any = await localforage.getItem(key);
+    let root: any = `${key}`.split('.')[0],
+        value: any = await localforage.getItem(root);
 
     if (value === null && typeof fallback === 'function' ) {
-        set(key, await fallback());
+        value = await fallback();
     }
 
-    value = dot.get(cache, key) || value;
+    set(root, value);
+
+    value = dot.get(cache, key);
 
     if (value === null) {
         throw new Error(`'${key}' has not been set in storage`);
@@ -47,7 +50,7 @@ const has = async (key: string): Promise<boolean> => {
 };
 
 const set = (key: string, value: any): void => {
-    cache[key] = value;
+    dot.set(cache, key, value);
     localforage.setItem(key, value);
 };
 
