@@ -11,6 +11,10 @@ function init(options: Options = {}): void {
     localforage.config(Object.assign({ name: 'store' }, options, { driver }));
 }
 
+function sync(key: string) {
+    localforage.setItem(key.split('.')[0], dot.get(cache, key));
+}
+
 
 const clear = () => {
     cache = {};
@@ -19,24 +23,25 @@ const clear = () => {
 
 const del = (key: string): void => {
     dot.set(cache, key, undefined);
-    localforage.removeItem(key);
+
+    if (key.includes('.')) {
+        sync(key);
+    }
+    else {
+        localforage.removeItem(key);
+    }
 }
 
 const get = async (key: string, fallback: any = null): Promise<any> => {
-    if (dot.has(cache, key)) {
+    if (has(key)) {
         return dot.get(cache, key);
     }
 
-    let root: any = `${key}`.split('.')[0],
-        value: any = await localforage.getItem(root);
-
-    if (value === null && typeof fallback === 'function' ) {
-        value = await fallback();
+    if (typeof fallback === 'function') {
+        set(key, await fallback());
     }
 
-    set(root, value);
-
-    value = dot.get(cache, key);
+    let value = dot.get(cache, key);
 
     if (value === null) {
         throw new Error(`'${key}' has not been set in storage`);
@@ -46,12 +51,22 @@ const get = async (key: string, fallback: any = null): Promise<any> => {
 };
 
 const has = async (key: string): Promise<boolean> => {
-    return dot.has(cache, key) || (await localforage.getItem(key)) === null;
+    if (dot.has(cache, key)) {
+        return true;
+    }
+
+    let value: any = await localforage.getItem(key.split('.')[0]);
+
+    if (value !== null) {
+        set(key, value);
+    }
+
+    return value !== null;
 };
 
 const set = (key: string, value: any): void => {
     dot.set(cache, key, value);
-    localforage.setItem(key, value);
+    sync(key);
 };
 
 const useIndexedDB = (options: Options = {}): void => {
