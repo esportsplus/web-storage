@@ -12,7 +12,9 @@ function init(options: Options = {}): void {
 }
 
 function sync(key: string) {
-    localforage.setItem((key.split('.')[0] || ''), dot.get(cache, key));
+    let root = (key.split('.')[0] || '');
+
+    localforage.setItem(root, dot.get(cache, root));
 }
 
 
@@ -32,16 +34,18 @@ const del = (key: string): void => {
     }
 }
 
-const get = async (key: string, fallback: any = null): Promise<any> => {
+const get = async (key: string, value: any = null): Promise<any> => {
     if (await has(key)) {
         return dot.get(cache, key);
     }
 
-    if (typeof fallback === 'function') {
-        set(key, await fallback());
+    if (typeof value === 'function') {
+        value = await value();
     }
 
-    let value = dot.get(cache, key);
+    set(key, value);
+
+    value = dot.get(cache, key);
 
     if (value === null) {
         throw new Error(`'${key}' has not been set in storage`);
@@ -62,6 +66,36 @@ const has = async (key: string): Promise<boolean> => {
     }
 
     return value !== null;
+};
+
+const prepend = async (key: string, value: any): Promise<void> => {
+    let values = await get(key, []);
+
+    if (!Array.isArray(values)) {
+        values = [values];
+    }
+
+    values.unshift(value);
+
+    set(key, values);
+};
+
+const push = async (key: string, value: any): Promise<void> => {
+    let values = await get(key, []);
+
+    if (!Array.isArray(values)) {
+        values = [values];
+    }
+
+    values.push(value);
+
+    set(key, values);
+};
+
+const replace = (values: { [key: string]: any }): void => {
+    for (let key in values) {
+        set(key, values[key]);
+    }
 };
 
 const set = (key: string, value: any): void => {
@@ -88,4 +122,4 @@ const useOptions = (options: Options = {}): void => {
 init();
 
 
-export default { clear, delete: del, get, has, set, useIndexedDB, useLocalStorage, useOptions };
+export default { clear, delete: del, get, has, prepend, push, replace, set, useIndexedDB, useLocalStorage, useOptions };
