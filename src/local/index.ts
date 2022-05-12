@@ -66,6 +66,10 @@ const has = async (key: string): Promise<boolean> => {
     if (value !== null) {
         set(f, value);
 
+        if (Array.isArray(value) && k.length == 0) {
+            return true;
+        }
+
         if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
             return dot.has(value, k.join('.'));
         }
