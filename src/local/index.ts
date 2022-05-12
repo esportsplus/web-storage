@@ -59,13 +59,19 @@ const has = async (key: string): Promise<boolean> => {
         return true;
     }
 
-    let value: any = await localforage.getItem(key.split('.')[0] || '');
+    let k = key.split('.'),
+        f = k.shift() || '',
+        value = await localforage.getItem(f);
 
     if (value !== null) {
-        set(key, value);
+        set(f, value);
+
+        if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+            return dot.has(value, k.join('.'));
+        }
     }
 
-    return value !== null;
+    return false;
 };
 
 const prepend = async (key: string, value: any): Promise<void> => {
