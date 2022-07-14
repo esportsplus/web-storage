@@ -11,10 +11,10 @@ function init(options: Options = {}): void {
     localforage.config(Object.assign({ name: 'store' }, options, { driver }));
 }
 
-function sync(key: string) {
+async function sync(key: string) {
     let root = (key.split('.')[0] || '');
 
-    localforage.setItem(root, dot.get(cache, root));
+    await localforage.setItem(root, dot.get(cache, root));
 }
 
 
@@ -23,11 +23,11 @@ const clear = () => {
     localforage.clear();
 };
 
-const del = (key: string): void => {
+const del = async (key: string): Promise<void> => {
     dot.set(cache, key, undefined);
 
     if (key.includes('.')) {
-        sync(key);
+        await sync(key);
     }
     else {
         localforage.removeItem(key);
@@ -108,9 +108,9 @@ const replace = (values: { [key: string]: any }): void => {
     }
 };
 
-const set = (key: string, value: any): void => {
+const set = async (key: string, value: any): Promise<void> => {
     dot.set(cache, key, value);
-    sync(key);
+    await sync(key);
 };
 
 const useIndexedDB = (options: Options = {}): void => {
