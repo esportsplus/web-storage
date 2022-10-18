@@ -49,6 +49,10 @@ class Store {
     }
 
     delete(...keys: string[]): void {
+        if (!keys.length) {
+            return;
+        }
+
         this.promises.push(async () => {
             for (let i = 0, n = keys.length; i < n; i++) {
                 await this.instance.removeItem(keys[i]);
@@ -138,6 +142,10 @@ class Store {
     }
 
     push(key: string, ...values: any[]): void {
+        if (!values.length) {
+            return;
+        }
+
         this.promises.push(async () => {
             let data = (await this.get(key)) || [];
 
@@ -148,6 +156,10 @@ class Store {
     }
 
     replace(values: { [key: string]: any }): void {
+        if (!Object.keys(values).length) {
+            return;
+        }
+
         this.promises.push(async () => {
             for (let key in values) {
                 await this.instance.setItem(key, values[key])
@@ -175,6 +187,10 @@ class Store {
     }
 
     unshift(key: string, ...values: any[]): void {
+        if (!values.length) {
+            return;
+        }
+
         this.promises.push(async () => {
             let data = (await this.get(key)) || [];
 
