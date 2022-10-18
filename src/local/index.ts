@@ -186,4 +186,6 @@ class Store {
 }
 
 
-export default (options: LocalForageOptions = {}): Store => new Store(options);
+export default {
+    store: (options: LocalForageOptions = {}): Store => new Store(options)
+};
