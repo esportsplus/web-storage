@@ -1,7 +1,6 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/dot": "^0.0.3",
         "localforage": "^1.10.0"
     },
     "description": "Web storage utility",
