@@ -23,7 +23,7 @@ class Store {
                 break;
         }
 
-        this.instance = localforage.createInstance( Object.assign(options, { driver, name }) );
+        this.instance = localforage.createInstance( Object.assign(options, { driver, name, storeName: name }) );
         this.iterate = this.instance.iterate;
         this.keys = this.instance.keys;
         this.length = this.instance.length;
