@@ -155,21 +155,7 @@ class Store {
         });
     }
 
-    replace(values: { [key: string]: any }, whitelist: string[] = []): void {
-        if (whitelist.length) {
-            let whitelisted: { [key: string]: any } = {};
-
-            for (let i = 0, n = whitelist.length; i < n; i++) {
-                if (!values[whitelist[i]]) {
-                    continue;
-                }
-        
-                whitelisted[whitelist[i]] = values[whitelist[i]];
-            }
-
-            values = whitelisted;
-        }
-
+    replace(values: { [key: string]: any }): void {
         if (!Object.keys(values).length) {
             return;
         }
