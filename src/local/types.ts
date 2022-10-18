@@ -1,9 +1,9 @@
-type Options = {
-    description?: string,
-    name?: string,
-    storeName?: string,
-    version?: number
+enum Driver {
+    IndexedDB,
+    LocalStorage
 };
 
+type Object = { [key: string]: any };
 
-export type { Options };
+
+export { Driver, Object };

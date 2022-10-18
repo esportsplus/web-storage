@@ -1,64 +1,54 @@
-const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 const glob = require('glob');
-const webpack = require('webpack');
 
 
-const config = ({ filename, input, library, output, production }) => {
-    let optimization = {
-            usedExports: false
-        };
-
+module.exports = ({ directory, entry, filename, library, output, production }) => {
     filename = filename || 'app';
-    production = production ? false : true;
+    production = production == 'true' ? true : false;
+
+    if (directory) {
+        entry = glob.sync(`${directory}/{,!(node_modules)/**/}!(webpack)*!(.d).{ts,js}`);
+    }
 
     if (production) {
-        optimization = {
-            mangleWasmImports: false,
-            minimize: false,
-            usedExports: false
-        };
+        filename += '.min';
     }
 
     return {
         entry: {
-            [(filename || 'app') + (production ? '.min' : '')]: glob.sync(`${input}/{,!(node_modules)/**/}!(webpack)*!(.d).ts`)
+            [filename]: entry
         },
-        mode: (production ? 'development' : 'production'),
+        mode: (production ? 'production' : 'development'),
         module: {
             rules: [
                 {
                     test: /\.tsx?$/,
                     use: 'ts-loader',
-                    exclude: /node_modules/
+                    exclude: /node_modules/,
+                    resolve: {
+                        fullySpecified: false,
+                    }
                 }
             ]
         },
-        optimization,
+        optimization: {
+            mangleWasmImports: production,
+            minimize: production,
+            usedExports: production
+        },
         output: {
-            // fixes ReferenceError: window is not defined
-            globalObject: "(typeof self !== 'undefined' ? self : this)",
             library: library || filename,
             path: output,
         },
-        plugins: [
-            new NodePolyfillPlugin(),
-            new webpack.ProvidePlugin({
-                Buffer: ['buffer', 'Buffer'],
-                process: 'process/browser'
-            })
-        ],
         resolve: {
             extensions: ['.js', '.ts', '.tsx'],
-            fallback: {
-                fs: false
-            },
+            fullySpecified: false,
             plugins: [
-                new TsconfigPathsPlugin()
+                new TsconfigPathsPlugin({
+                    extensions: ['.js', '.ts', '.tsx']
+                })
             ]
-        }
+        },
+        watch: true
     };
 };
-
-
-module.exports = config;

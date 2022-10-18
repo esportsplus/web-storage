@@ -1,135 +1,189 @@
-import type { Options } from './types';
-import dot from '@esportsplus/dot';
+import { Driver, Object } from './types';
 import localforage from 'localforage';
 
 
-let cache: any = {},
-    driver: any = localforage.LOCALSTORAGE;
+class Store {
+    instance: LocalForage;
+    iterate: LocalForage['iterate'];
+    keys: LocalForage['keys'];
+    length: LocalForage['length'];
+    promises: (Promise<any> | (() => void))[];
 
 
-function init(options: Options = {}): void {
-    localforage.config(Object.assign({ name: 'store' }, options, { driver }));
-}
+    constructor(options: LocalForageOptions = {}) {
+        let driver,
+            name = options.name || 'store';
 
-async function sync(key: string) {
-    let root = (key.split('.')[0] || '');
+        switch ((options.driver || Driver.IndexedDB) as Driver) {
+            case Driver.LocalStorage: 
+                driver = localforage.LOCALSTORAGE;
+                break;
+            default:
+                driver = localforage.INDEXEDDB;
+                break;
+        }
 
-    await localforage.setItem(root, dot.get(cache, root));
-}
-
-
-const clear = () => {
-    cache = {};
-    localforage.clear();
-};
-
-const del = async (key: string): Promise<void> => {
-    dot.set(cache, key, undefined);
-
-    if (key.includes('.')) {
-        await sync(key);
-    }
-    else {
-        localforage.removeItem(key);
-    }
-}
-
-const get = async (key: string, value: any = null): Promise<any> => {
-    if (await has(key)) {
-        return dot.get(cache, key);
+        this.instance = localforage.createInstance( Object.assign(options, { driver, name }) );
+        this.iterate = this.instance.iterate;
+        this.keys = this.instance.keys;
+        this.length = this.instance.length;
+        this.promises = [];
     }
 
-    if (typeof value === 'function') {
-        value = await value();
+
+    assign(key: string, value: Object): void {
+        this.promises.push(async () => {
+            let data = (await this.get(key)) || {};
+
+            await this.instance.setItem(
+                key, 
+                Object.assign(data, value)
+            );
+        });
     }
 
-    set(key, value);
+    clear(): Promise<void> {
+        this.promises = [];
 
-    value = dot.get(cache, key);
-
-    if (value === null) {
-        throw new Error(`'${key}' has not been set in storage`);
+        return this.instance.clear();
     }
 
-    return value;
-};
+    delete(...keys: string[]): void {
+        this.promises.push(async () => {
+            for (let i = 0, n = keys.length; i < n; i++) {
+                await this.instance.removeItem(keys[i]);
+            }
+        });
+    }
 
-const has = async (key: string): Promise<boolean> => {
-    if (dot.has(cache, key)) {
+    async entries(): Promise<Object> {
+        let values: Object = {};
+
+        await this.instance.iterate((value: any, key: string) => {
+            values[key] = value;
+        });
+
+        return values;
+    }
+
+    async filter(fn: Function): Promise<Object> {
+        let values: Object = {};
+
+        await this.instance.iterate((value: any, key: string) => {
+            let result = fn(value, key),
+                stop = typeof result !== 'boolean';
+
+            if (stop || (!stop && result)) {
+                values[key] = value;
+            }
+
+            if (stop) {
+                return true;
+            }
+        });
+
+        return values;
+    }
+
+    async get(key: string, value: any = null): Promise<any> {
+        let data: any = await this.instance.getItem(key);
+    
+        if (data === null) {
+            if (typeof value === 'function') {
+                data = await value();
+            }
+            else {
+                data = value;
+            }
+    
+            if (data !== null) {
+                this.set(key, data);
+            }
+        }
+    
+        if (data === null) {
+            throw new Error(`'${key}' has not been set in Storage`);
+        }
+    
+        return data;
+    }
+
+    async has(...keys: string[]): Promise<boolean> {
+        let haystack = await this.instance.keys();
+
+        for (let i = 0, n = keys.length; i < n; i++) {
+            if (haystack.includes(keys[i])) {
+                continue;
+            }
+
+            return false;
+        }
+        
         return true;
     }
 
-    let k = key.split('.'),
-        f = k.shift() || '',
-        value = await localforage.getItem(f);
-
-    if (value !== null) {
-        set(f, value);
-
-        if (Array.isArray(value) && k.length == 0) {
-            return true;
-        }
-
-        if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
-            return dot.has(value, k.join('.'));
-        }
+    async only(...keys: string[]): Promise<Object> {
+        return await this.filter((key: string) => keys.includes(key));
     }
 
-    return false;
-};
+    async pop(key: string): Promise<any> {
+        let value,
+            values = (await this.get(key)) || [];
 
-const prepend = async (key: string, value: any): Promise<void> => {
-    let values = await get(key, []);
+        value = values.pop();
 
-    if (!Array.isArray(values)) {
-        values = [values];
+        this.promises.push( this.instance.setItem(key, values) );
+
+        return value;
     }
 
-    values.unshift(value);
+    push(key: string, ...values: any[]): void {
+        this.promises.push(async () => {
+            let data = (await this.get(key)) || [];
 
-    set(key, values);
-};
+            data.push(...values);
 
-const push = async (key: string, value: any): Promise<void> => {
-    let values = await get(key, []);
-
-    if (!Array.isArray(values)) {
-        values = [values];
+            await this.instance.setItem(key, data);
+        });
     }
 
-    values.push(value);
-
-    set(key, values);
-};
-
-const replace = (values: { [key: string]: any }): void => {
-    for (let key in values) {
-        set(key, values[key]);
+    replace(values: { [key: string]: any }): void {
+        this.promises.push(async () => {
+            for (let key in values) {
+                await this.instance.setItem(key, values[key])
+            }
+        });
     }
-};
 
-const set = async (key: string, value: any): Promise<void> => {
-    dot.set(cache, key, value);
-    await sync(key);
-};
+    async shift(key: string): Promise<any> {
+        let value,
+            values = (await this.get(key)) || [];
 
-const useIndexedDB = (options: Options = {}): void => {
-    driver = localforage.INDEXEDDB;
-    init(options);
-};
+        value = values.shift();
 
-const useLocalStorage = (options: Options = {}): void => {
-    driver = localforage.LOCALSTORAGE;
-    init(options);
-};
+        this.promises.push( this.instance.setItem(key, values) );
 
-const useOptions = (options: Options = {}): void => {
-    init(options);
-};
+        return value;
+    }
+
+    set(key: string, value: any): void {
+        this.promises.push( this.instance.setItem(key, value) );
+    }
+
+    async sync(): Promise<void> { 
+        await Promise.allSettled(this.promises.splice(0));
+    }
+
+    unshift(key: string, ...values: any[]): void {
+        this.promises.push(async () => {
+            let data = (await this.get(key)) || [];
+
+            data.unshift(...values);
+
+            await this.instance.setItem(key, data);
+        });
+    }
+}
 
 
-// Initialize using localstorage as default storage
-init();
-
-
-export default { clear, delete: del, get, has, prepend, push, replace, set, useIndexedDB, useLocalStorage, useOptions };
+export default (options: LocalForageOptions = {}): Store => new Store(options);
