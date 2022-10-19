@@ -139,6 +139,10 @@ class Store {
         }
     }
 
+    async set(key: string, value: any): Promise<void> {
+        await this.instance.setItem(key, value);
+    }
+
     async shift(key: string): Promise<any> {
         let value,
             values = (await this.get(key)) || [];
@@ -148,10 +152,6 @@ class Store {
         await this.instance.setItem(key, values);
 
         return value;
-    }
-
-    async set(key: string, value: any): Promise<void> {
-        await this.instance.setItem(key, value);
     }
 
     async unshift(key: string, ...values: any[]): Promise<void> {
