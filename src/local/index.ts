@@ -84,27 +84,12 @@ class Store {
         return values;
     }
 
-    async get(key: string, value: any = null): Promise<any> {
-        let data: any = await this.instance.getItem(key);
-    
-        if (data === null) {
-            if (typeof value === 'function') {
-                data = await value();
-            }
-            else {
-                data = value;
-            }
-    
-            if (data !== null) {
-                this.set(key, data);
-            }
+    async get(...keys: string[]): Promise<any> {
+        if (keys.length === 1) {
+            return await this.instance.getItem(keys[0]);
         }
-    
-        if (data === null) {
-            throw new Error(`'${key}' has not been set in Storage`);
-        }
-    
-        return data;
+
+        return await this.filter((key: string) => keys.includes(key));
     }
 
     async has(...keys: string[]): Promise<boolean> {
@@ -119,10 +104,6 @@ class Store {
         }
         
         return true;
-    }
-
-    async only(...keys: string[]): Promise<Object> {
-        return await this.filter((key: string) => keys.includes(key));
     }
 
     async pop(key: string): Promise<any> {
