@@ -32,14 +32,16 @@ class Store {
 
 
     assign(key: string, value: Object): void {
-        this.promises.push(async () => {
-            let data = (await this.get(key)) || {};
+        let transaction = async () => {
+                let data = (await this.get(key)) || {};
 
-            await this.instance.setItem(
-                key, 
-                Object.assign(data, value)
-            );
-        });
+                await this.instance.setItem(
+                    key, 
+                    Object.assign(data, value)
+                );
+            };
+
+        this.promises.push( transaction() );
     }
 
     clear(): Promise<void> {
@@ -53,11 +55,9 @@ class Store {
             return;
         }
 
-        this.promises.push(async () => {
-            for (let i = 0, n = keys.length; i < n; i++) {
-                await this.instance.removeItem(keys[i]);
-            }
-        });
+        for (let i = 0, n = keys.length; i < n; i++) {
+            this.promises.push(this.instance.removeItem(keys[i]));
+        }
     }
 
     async entries(): Promise<Object> {
@@ -146,13 +146,15 @@ class Store {
             return;
         }
 
-        this.promises.push(async () => {
-            let data = (await this.get(key)) || [];
+        let transaction = async () => {
+                let data = (await this.get(key)) || [];
 
-            data.push(...values);
+                data.push(...values);
 
-            await this.instance.setItem(key, data);
-        });
+                await this.instance.setItem(key, data);
+            };
+
+        this.promises.push( transaction() );
     }
 
     replace(values: { [key: string]: any }): void {
@@ -160,11 +162,9 @@ class Store {
             return;
         }
 
-        this.promises.push(async () => {
-            for (let key in values) {
-                await this.instance.setItem(key, values[key])
-            }
-        });
+        for (let key in values) {
+            this.promises.push( this.instance.setItem(key, values[key]) );
+        }
     }
 
     async shift(key: string): Promise<any> {
@@ -191,13 +191,15 @@ class Store {
             return;
         }
 
-        this.promises.push(async () => {
-            let data = (await this.get(key)) || [];
+        let transaction = async () => {
+                let data = (await this.get(key)) || [];
 
-            data.unshift(...values);
+                data.unshift(...values);
 
-            await this.instance.setItem(key, data);
-        });
+                await this.instance.setItem(key, data);
+            };
+
+        this.promises.push( transaction() );
     }
 }
 
