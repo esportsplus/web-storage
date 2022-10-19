@@ -7,7 +7,6 @@ class Store {
     iterate: LocalForage['iterate'];
     keys: LocalForage['keys'];
     length: LocalForage['length'];
-    promises: (Promise<any> | (() => void))[];
 
 
     constructor(options: LocalForageOptions = {}) {
@@ -23,49 +22,42 @@ class Store {
                 break;
         }
 
-        this.instance = localforage.createInstance( Object.assign(options, { driver, name, storeName: name }) );
+        this.instance = localforage.createInstance( 
+            Object.assign(options, { driver, name, storeName: name }) 
+        );
         this.iterate = this.instance.iterate;
         this.keys = this.instance.keys;
         this.length = this.instance.length;
-        this.promises = [];
     }
 
 
-    assign(key: string, value: Object): void {
-        let transaction = async () => {
-                let data = (await this.get(key)) || {};
-
-                await this.instance.setItem(
-                    key, 
-                    Object.assign(data, value)
-                );
-            };
-
-        this.promises.push( transaction() );
+    async assign(key: string, value: Object): Promise<void> {
+        let data = (await this.get(key)) || {};
+            
+        await this.instance.setItem(
+            key, 
+            Object.assign(data, value)
+        );
     }
 
-    clear(): Promise<void> {
-        this.promises = [];
-
-        return this.instance.clear();
+    async clear(): Promise<void> {
+        await this.instance.clear();
     }
 
-    delete(...keys: string[]): void {
+    async delete(...keys: string[]): Promise<void> {
         if (!keys.length) {
             return;
         }
 
         for (let i = 0, n = keys.length; i < n; i++) {
-            this.promises.push(this.instance.removeItem(keys[i]));
+            await this.instance.removeItem(keys[i]);
         }
     }
 
     async entries(): Promise<Object> {
         let values: Object = {};
 
-        await this.instance.iterate((value: any, key: string) => {
-            values[key] = value;
-        });
+        await this.instance.iterate((value: any, key: string) => (values[key] = value));
 
         return values;
     }
@@ -136,34 +128,30 @@ class Store {
 
         value = values.pop();
 
-        this.promises.push( this.instance.setItem(key, values) );
+        await this.instance.setItem(key, values);
 
         return value;
     }
 
-    push(key: string, ...values: any[]): void {
+    async push(key: string, ...values: any[]): Promise<void> {
         if (!values.length) {
             return;
         }
 
-        let transaction = async () => {
-                let data = (await this.get(key)) || [];
+        let data = (await this.get(key)) || []; 
 
-                data.push(...values);
+        data.push(...values);
 
-                await this.instance.setItem(key, data);
-            };
-
-        this.promises.push( transaction() );
+        await this.instance.setItem(key, data);
     }
 
-    replace(values: { [key: string]: any }): void {
+   async replace(values: { [key: string]: any }): Promise<void> {
         if (!Object.keys(values).length) {
             return;
         }
 
         for (let key in values) {
-            this.promises.push( this.instance.setItem(key, values[key]) );
+            await this.instance.setItem(key, values[key]);
         }
     }
 
@@ -173,33 +161,25 @@ class Store {
 
         value = values.shift();
 
-        this.promises.push( this.instance.setItem(key, values) );
+        await this.instance.setItem(key, values);
 
         return value;
     }
 
-    set(key: string, value: any): void {
-        this.promises.push( this.instance.setItem(key, value) );
+    async set(key: string, value: any): Promise<void> {
+        await this.instance.setItem(key, value);
     }
 
-    async sync(): Promise<void> { 
-        await Promise.allSettled(this.promises.splice(0));
-    }
-
-    unshift(key: string, ...values: any[]): void {
+    async unshift(key: string, ...values: any[]): Promise<void> {
         if (!values.length) {
             return;
         }
 
-        let transaction = async () => {
-                let data = (await this.get(key)) || [];
+        let data = (await this.get(key)) || [];
 
-                data.unshift(...values);
+        data.unshift(...values);
 
-                await this.instance.setItem(key, data);
-            };
-
-        this.promises.push( transaction() );
+        await this.instance.setItem(key, data);
     }
 }
 
