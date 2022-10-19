@@ -62,17 +62,20 @@ class Store {
         return values;
     }
 
-    async filter(fn: Function): Promise<Object> {
-        let values: Object = {};
+    async filter(filter: Function): Promise<Object> {
+        let s: () => void = () => {
+                stop = true;
+            },
+            stop: boolean = false,
+            values: Object = {};
 
-        await this.instance.iterate((value: any, key: string) => {
-            let result = fn(value, key),
-                stop = typeof result !== 'boolean';
-
-            if (stop || (!stop && result)) {
+        await this.instance.iterate((value: any, key: string, i: number) => {
+            if (filter({ i, key, stop: s, value })) {
                 values[key] = value;
             }
-
+            
+            // LocalForage iterate will stop once a non 
+            // undefined value is returned
             if (stop) {
                 return true;
             }
