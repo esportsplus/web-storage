@@ -14,7 +14,7 @@ class Store {
             name = options.name || 'store';
 
         switch ((options.driver || Driver.IndexedDB) as Driver) {
-            case Driver.LocalStorage: 
+            case Driver.LocalStorage:
                 driver = localforage.LOCALSTORAGE;
                 break;
             default:
@@ -22,8 +22,8 @@ class Store {
                 break;
         }
 
-        this.instance = localforage.createInstance( 
-            Object.assign(options, { driver, name, storeName: name }) 
+        this.instance = localforage.createInstance(
+            Object.assign(options, { driver, name, storeName: name })
         );
         this.iterate = this.instance.iterate;
         this.keys = this.instance.keys;
@@ -33,9 +33,9 @@ class Store {
 
     async assign(key: string, value: Object): Promise<void> {
         let data = (await this.get(key)) || {};
-            
+
         await this.instance.setItem(
-            key, 
+            key,
             Object.assign(data, value)
         );
     }
@@ -57,7 +57,9 @@ class Store {
     async entries(): Promise<Object> {
         let values: Object = {};
 
-        await this.instance.iterate((value: any, key: string) => (values[key] = value));
+        await this.instance.iterate((value: any, key: string) => {
+            values[key] = value;
+        });
 
         return values;
     }
@@ -73,8 +75,8 @@ class Store {
             if (filter({ i, key, stop: s, value })) {
                 values[key] = value;
             }
-            
-            // LocalForage iterate will stop once a non 
+
+            // LocalForage iterate will stop once a non
             // undefined value is returned
             if (stop) {
                 return true;
@@ -102,7 +104,7 @@ class Store {
 
             return false;
         }
-        
+
         return true;
     }
 
@@ -122,7 +124,7 @@ class Store {
             return;
         }
 
-        let data = (await this.get(key)) || []; 
+        let data = (await this.get(key)) || [];
 
         data.push(...values);
 
