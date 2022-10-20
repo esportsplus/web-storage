@@ -31,13 +31,14 @@ class Store {
     }
 
 
-    async assign(key: string, value: Object): Promise<void> {
-        let data = (await this.get(key)) || {};
+    async all(): Promise<Object> {
+        let values: Object = {};
 
-        await this.instance.setItem(
-            key,
-            Object.assign(data, value)
-        );
+        await this.instance.iterate((value: any, key: string) => {
+            values[key] = value;
+        });
+
+        return values;
     }
 
     async clear(): Promise<void> {
@@ -52,16 +53,6 @@ class Store {
         for (let i = 0, n = keys.length; i < n; i++) {
             await this.instance.removeItem(keys[i]);
         }
-    }
-
-    async entries(): Promise<Object> {
-        let values: Object = {};
-
-        await this.instance.iterate((value: any, key: string) => {
-            values[key] = value;
-        });
-
-        return values;
     }
 
     async filter(filter: Function): Promise<Object> {
@@ -108,30 +99,7 @@ class Store {
         return true;
     }
 
-    async pop(key: string): Promise<any> {
-        let value,
-            values = (await this.get(key)) || [];
-
-        value = values.pop();
-
-        await this.instance.setItem(key, values);
-
-        return value;
-    }
-
-    async push(key: string, ...values: any[]): Promise<void> {
-        if (!values.length) {
-            return;
-        }
-
-        let data = (await this.get(key)) || [];
-
-        data.push(...values);
-
-        await this.instance.setItem(key, data);
-    }
-
-   async replace(values: { [key: string]: any }): Promise<void> {
+    async set(values: { [key: string]: any }): Promise<void> {
         if (!Object.keys(values).length) {
             return;
         }
@@ -139,33 +107,6 @@ class Store {
         for (let key in values) {
             await this.instance.setItem(key, values[key]);
         }
-    }
-
-    async set(key: string, value: any): Promise<void> {
-        await this.instance.setItem(key, value);
-    }
-
-    async shift(key: string): Promise<any> {
-        let value,
-            values = (await this.get(key)) || [];
-
-        value = values.shift();
-
-        await this.instance.setItem(key, values);
-
-        return value;
-    }
-
-    async unshift(key: string, ...values: any[]): Promise<void> {
-        if (!values.length) {
-            return;
-        }
-
-        let data = (await this.get(key)) || [];
-
-        data.unshift(...values);
-
-        await this.instance.setItem(key, data);
     }
 }
 
