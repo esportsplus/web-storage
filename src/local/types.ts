@@ -5,5 +5,7 @@ enum Driver {
 
 type Object = { [key: string]: any };
 
+type Options = LocalForageOptions & { name: string };
 
-export { Driver, Object };
+
+export { Driver, Object, Options };

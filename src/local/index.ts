@@ -1,4 +1,4 @@
-import { Driver, Object } from './types';
+import { Driver, Object, Options } from './types';
 import localforage from 'localforage';
 
 
@@ -9,9 +9,8 @@ class Store {
     length: LocalForage['length'];
 
 
-    constructor(options: LocalForageOptions = {}) {
-        let driver,
-            name = options.name || 'store';
+    constructor(options: Options) {
+        let driver;
 
         switch ((options.driver || Driver.IndexedDB) as Driver) {
             case Driver.LocalStorage:
@@ -23,7 +22,7 @@ class Store {
         }
 
         this.instance = localforage.createInstance(
-            Object.assign(options, { driver, name, storeName: name })
+            Object.assign(options, { driver, storeName: options.name })
         );
         this.iterate = this.instance.iterate;
         this.keys = this.instance.keys;
@@ -112,5 +111,5 @@ class Store {
 
 
 export default {
-    store: (options: LocalForageOptions = {}): Store => new Store(options)
+    store: (options: Options): Store => new Store(options)
 };
