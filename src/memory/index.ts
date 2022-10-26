@@ -46,7 +46,7 @@ class Store<T> {
     }
 
     only(...keys: (keyof T)[]) {
-        let data: any = {};
+        let data: T = {} as T;
 
         for (let i = 0, n = keys.length; i < n; i++) {
             data[keys[i]] = this.store[keys[i]];
