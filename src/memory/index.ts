@@ -1,11 +1,9 @@
-class Store<T extends object> {
-    defaults: T;
+class Store<T> {
     store: T;
 
 
-    constructor(defaults: T) {
-        this.defaults = defaults;
-        this.store = this.defaults;
+    constructor(data: T | {}) {
+        this.store = data as T;
     }
 
 
@@ -14,7 +12,7 @@ class Store<T extends object> {
     }
 
     clear() {
-        this.store = this.defaults;
+        this.store = {} as T;
     }
 
     delete(key: keyof T) {
@@ -70,5 +68,5 @@ class Store<T extends object> {
 
 
 export default {
-    store: <T extends object>(data: T | {} = {}) => new Store(data)
+    store: <T>(data: T | {} = {}) => new Store<T>(data)
 };
