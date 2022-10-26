@@ -1,5 +1,6 @@
 import local from './local';
+import memory from './memory';
 
 
-export default { local };
-export { local };
+export default { local, memory };
+export { local, memory };

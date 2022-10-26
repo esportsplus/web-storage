@@ -1,8 +1,8 @@
-import { Driver, Object, Options } from './types';
+import { Driver, Options } from './types';
 import localforage from 'localforage';
 
 
-class Store {
+class Store<T extends object> {
     instance: LocalForage;
     iterate: LocalForage['iterate'];
     keys: LocalForage['keys'];
@@ -30,40 +30,40 @@ class Store {
     }
 
 
-    async all(): Promise<Object> {
-        let values: Object = {};
+    async all(): Promise<T | {}> {
+        let values: T = {} as T;
 
         await this.instance.iterate((value: any, key: string) => {
-            values[key] = value;
+            values[key as keyof T] = value;
         });
 
         return values;
     }
 
-    async clear(): Promise<void> {
+    async clear() {
         await this.instance.clear();
     }
 
-    async delete(...keys: string[]): Promise<void> {
+    async delete(...keys: (keyof T)[]) {
         if (!keys.length) {
             return;
         }
 
         for (let i = 0, n = keys.length; i < n; i++) {
-            await this.instance.removeItem(keys[i]);
+            await this.instance.removeItem(keys[i] as string);
         }
     }
 
-    async filter(filter: Function): Promise<Object> {
+    async filter(filter: Function): Promise<T | {}> {
         let s: () => void = () => {
                 stop = true;
             },
             stop: boolean = false,
-            values: Object = {};
+            values: T = {} as T;
 
         await this.instance.iterate((value: any, key: string, i: number) => {
             if (filter({ i, key, stop: s, value })) {
-                values[key] = value;
+                values[key as keyof T] = value;
             }
 
             // LocalForage iterate will stop once a non
@@ -76,40 +76,32 @@ class Store {
         return values;
     }
 
-    async get(...keys: string[]): Promise<any> {
-        if (keys.length === 1) {
-            return await this.instance.getItem(keys[0]);
+    async get(key: keyof T) {
+        let value: T[keyof T] | null = await this.instance.getItem(key as string);
+
+        if (value === null) {
+            return undefined;
         }
 
-        return await this.filter((key: string) => keys.includes(key));
+        return value;
     }
 
-    async has(...keys: string[]): Promise<boolean> {
-        let haystack = await this.instance.keys();
-
-        for (let i = 0, n = keys.length; i < n; i++) {
-            if (haystack.includes(keys[i])) {
-                continue;
-            }
-
-            return false;
-        }
-
-        return true;
+    async only(...keys: (keyof T)[]) {
+        return await this.filter((key: string) => keys.includes(key as keyof T));
     }
 
-    async set(values: { [key: string]: any }): Promise<void> {
-        if (!Object.keys(values).length) {
-            return;
-        }
-
+    async replace(values: T) {
         for (let key in values) {
             await this.instance.setItem(key, values[key]);
         }
+    }
+
+    async set(key: keyof T, value: T[keyof T]) {
+        await this.instance.setItem(key as string, value);
     }
 }
 
 
 export default {
-    store: (options: Options): Store => new Store(options)
+    store: <T extends object>(options: Options) => new Store<T>(options)
 };

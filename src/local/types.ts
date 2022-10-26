@@ -3,9 +3,7 @@ enum Driver {
     LocalStorage
 };
 
-type Object = { [key: string]: any };
-
 type Options = LocalForageOptions & { name: string };
 
 
-export { Driver, Object, Options };
+export { Driver, Options };
