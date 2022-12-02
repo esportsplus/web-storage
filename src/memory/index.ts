@@ -2,7 +2,7 @@ class Store<T> {
     store: T;
 
 
-    constructor(data: T | {}) {
+    constructor(data: T) {
         this.store = data as T;
     }
 
@@ -19,7 +19,7 @@ class Store<T> {
         delete this.store[key];
     }
 
-    async filter(filter: Function): Promise<T | {}> {
+    async filter(filter: Function): Promise<T | Record<string, never>> {
         let s: () => void = () => {
                 stop = true;
             },
@@ -68,5 +68,5 @@ class Store<T> {
 
 
 export default {
-    store: <T>(data: T | {} = {}) => new Store<T>(data)
+    store: <T>(data: T) => new Store<T>(data)
 };

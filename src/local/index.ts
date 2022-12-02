@@ -30,7 +30,7 @@ class Store<T> {
     }
 
 
-    async all(): Promise<T | {}> {
+    async all(): Promise<T | Record<string, never>> {
         let values: T = {} as T;
 
         await this.instance.iterate((value: any, key: string) => {
@@ -54,7 +54,7 @@ class Store<T> {
         }
     }
 
-    async filter(filter: Function): Promise<T | {}> {
+    async filter(filter: Function): Promise<T | Record<string, never>> {
         let s: () => void = () => {
                 stop = true;
             },
