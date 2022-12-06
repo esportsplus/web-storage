@@ -3,7 +3,13 @@ enum Driver {
     LocalStorage
 };
 
-type Options = LocalForageOptions & { name: string };
+type Options = {
+    description?: string;
+    driver?: string | string[];
+    name: string;
+    size?: number;
+    version?: number;
+};
 
 
 export { Driver, Options };
