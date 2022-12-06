@@ -1,7 +1,12 @@
+import localforage from 'localforage';
+
+
 enum Driver {
     IndexedDB,
     LocalStorage
 };
+
+type LocalForage = typeof localforage;
 
 type Options = {
     description?: string;
@@ -12,4 +17,4 @@ type Options = {
 };
 
 
-export { Driver, Options };
+export { Driver, LocalForage, Options };

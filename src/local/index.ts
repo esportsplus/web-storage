@@ -1,4 +1,4 @@
-import { Driver, Options } from './types';
+import { Driver, LocalForage, Options } from './types';
 import localforage from 'localforage';
 
 
