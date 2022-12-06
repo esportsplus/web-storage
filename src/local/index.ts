@@ -55,7 +55,7 @@ class Store<T> {
     }
 
     async filter(filter: Function): Promise<T | Record<string, never>> {
-        let s: () => void = () => {
+        let s: VoidFunction = () => {
                 stop = true;
             },
             stop: boolean = false,
