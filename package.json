@@ -5,18 +5,17 @@
     },
     "description": "Web storage utility",
     "devDependencies": {
-        "tsc-alias": "^1.8.1",
-        "typescript": "^4.9.3"
+        "@esportsplus/webpack": "^0.0.80"
     },
-    "main": "./build/index.js",
+    "main": "build/index.js",
     "name": "@esportsplus/web-storage",
     "private": false,
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && tsc-alias",
         "-": "-",
         "prepare": "npm run build",
         "prepublishOnly": "npm run build"
     },
-    "types": "./build/index.d.ts",
+    "types": "build/index.d.ts",
     "version": "0.1.24"
 }
