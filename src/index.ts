@@ -1,6 +1,1 @@
-import local from './local';
-import memory from './memory';
-
-
-export default { local, memory };
-export { local, memory };
+export { default as local } from './local';

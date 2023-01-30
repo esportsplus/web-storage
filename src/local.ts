@@ -2,7 +2,7 @@ import { Driver, LocalForage, Options } from './types';
 import localforage from 'localforage';
 
 
-class Store<T> {
+class Local<T> {
     instance: LocalForage;
     iterate: LocalForage['iterate'];
     keys: LocalForage['keys'];
@@ -102,6 +102,4 @@ class Store<T> {
 }
 
 
-export default {
-    store: <T>(options: Options) => new Store<T>(options)
-};
+export default <T>(options: Options) => new Local<T>(options);
