@@ -1,4 +1,5 @@
-import { Driver, LocalForage, Options } from './types';
+import { Driver, Filter, LocalForage, Options } from '~/types';
+import { decrypt, encrypt } from '@esportsplus/crypto';
 import localforage from 'localforage';
 
 
@@ -7,35 +8,81 @@ class Local<T> {
     iterate: LocalForage['iterate'];
     keys: LocalForage['keys'];
     length: LocalForage['length'];
+    secret: null | string = null;
 
 
-    constructor(options: Options) {
-        let driver;
-
+    constructor(options: Options, secret?: string) {
         switch ((options.driver || Driver.IndexedDB) as Driver) {
             case Driver.LocalStorage:
-                driver = localforage.LOCALSTORAGE;
+                options.driver = localforage.LOCALSTORAGE;
                 break;
             default:
-                driver = localforage.INDEXEDDB;
+                options.driver = localforage.INDEXEDDB;
                 break;
         }
 
         this.instance = localforage.createInstance(
-            Object.assign(options, { driver, storeName: options.name })
+            Object.assign(options, { storeName: options.name })
         );
         this.iterate = this.instance.iterate;
         this.keys = this.instance.keys;
         this.length = this.instance.length;
+
+        if (secret) {
+            this.secret = secret;
+        }
     }
 
 
-    async all(): Promise<T | Record<string, never>> {
-        let values: T = {} as T;
+    private async deserialize(value: unknown) {
+        if (this.secret && typeof value === 'string') {
+            value = await decrypt(value, this.secret);
+        }
 
-        await this.instance.iterate((value: any, key: string) => {
-            values[key as keyof T] = value;
+        if (typeof value === 'string') {
+            try {
+                value = JSON.parse(value);
+            }
+            catch {
+                return undefined;
+            }
+        }
+
+        return value as T[keyof T];
+    }
+
+    private async serialize(value: unknown) {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+
+        value = JSON.stringify(value);
+
+        if (this.secret) {
+            value = await encrypt(value as string, this.secret);
+        }
+
+        return value as string;
+    }
+
+
+    async all(): Promise<T> {
+        let stack: Promise<void>[] = [],
+            values: T = {} as T;
+
+        await this.instance.iterate((v: unknown, k: string) => {
+            stack.push(
+                this.deserialize(v).then((value) => {
+                    if (value === undefined) {
+                        return;
+                    }
+
+                    values[k as keyof T] = value;
+                })
+            )
         });
+
+        await Promise.allSettled(stack);
 
         return values;
     }
@@ -45,30 +92,37 @@ class Local<T> {
     }
 
     async delete(...keys: (keyof T)[]) {
-        if (!keys.length) {
-            return;
-        }
+        let stack: Promise<void>[] = [];
 
         for (let i = 0, n = keys.length; i < n; i++) {
-            await this.instance.removeItem(keys[i] as string);
+            stack.push( this.instance.removeItem(keys[i] as string) );
         }
+
+        await Promise.allSettled(stack);
     }
 
-    async filter(filter: Function): Promise<T | Record<string, never>> {
-        let s: VoidFunction = () => {
-                stop = true;
+    async filter(fn: Filter<T>): Promise<T> {
+        let stop: VoidFunction = () => {
+                stopped = true;
             },
-            stop: boolean = false,
+            stopped: boolean = false,
             values: T = {} as T;
 
-        await this.instance.iterate((value: any, key: string, i: number) => {
-            if (filter({ i, key, stop: s, value })) {
-                values[key as keyof T] = value;
+        await this.instance.iterate(async (v, k, i) => {
+            let key = k as keyof T,
+                value = await this.deserialize(v);
+
+            if (value === undefined) {
+                return;
+            }
+
+            if (await fn({ i, key, stop, value })) {
+                values[key] = value;
             }
 
             // LocalForage iterate will stop once a non
             // undefined value is returned
-            if (stop) {
+            if (stopped) {
                 return true;
             }
         });
@@ -77,29 +131,27 @@ class Local<T> {
     }
 
     async get(key: keyof T) {
-        let value: T[keyof T] | null = await this.instance.getItem(key as string);
-
-        if (value === null) {
-            return undefined;
-        }
-
-        return value;
+        return await this.deserialize( await this.instance.getItem(key as string) );
     }
 
     async only(...keys: (keyof T)[]) {
-        return await this.filter((key: string) => keys.includes(key as keyof T));
+        return await this.filter(({ key }) => keys.includes(key));
     }
 
     async replace(values: T) {
+        let stack: Promise<void>[] = [];
+
         for (let key in values) {
-            await this.instance.setItem(key, values[key]);
+            stack.push( this.set(key, values[key]) );
         }
+
+        await Promise.allSettled(stack);
     }
 
     async set(key: keyof T, value: T[keyof T]) {
-        await this.instance.setItem(key as string, value);
+        await this.instance.setItem(key as string, await this.serialize(value));
     }
 }
 
 
-export default <T>(options: Options) => new Local<T>(options);
+export default <T>(options: Options, secret?: string) => new Local<T>(options, secret);

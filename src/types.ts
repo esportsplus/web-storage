@@ -6,6 +6,8 @@ enum Driver {
     LocalStorage
 };
 
+type Filter<T> = (data: { i: number, key: keyof T, stop: VoidFunction, value: T[keyof T] }) => boolean | Promise<boolean>;
+
 type LocalForage = typeof localforage;
 
 type Options = {
@@ -17,4 +19,4 @@ type Options = {
 };
 
 
-export { Driver, LocalForage, Options };
+export { Driver, Filter, LocalForage, Options };
