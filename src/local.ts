@@ -3,6 +3,33 @@ import { decrypt, encrypt } from '@esportsplus/crypto';
 import localforage from 'localforage';
 
 
+async function deserialize(value: unknown, secret: null | string = null) {
+    if (secret && typeof value === 'string') {
+        value = await decrypt(value, secret);
+    }
+
+    if (typeof value === 'string') {
+        value = JSON.parse(value);
+    }
+
+    return value;
+}
+
+async function serialize(value: unknown, secret: null | string = null) {
+    if (value === null || value === undefined) {
+        return undefined;
+    }
+
+    value = JSON.stringify(value);
+
+    if (secret) {
+        value = await encrypt(value as string, secret);
+    }
+
+    return value as string;
+}
+
+
 class Local<T> {
     instance: LocalForage;
     iterate: LocalForage['iterate'];
@@ -34,46 +61,19 @@ class Local<T> {
     }
 
 
-    private async deserialize(value: unknown) {
-        if (this.secret && typeof value === 'string') {
-            value = await decrypt(value, this.secret);
-        }
-
-        if (typeof value === 'string') {
-            value = JSON.parse(value);
-        }
-
-        return value as T[keyof T];
-    }
-
-    private async serialize(value: unknown) {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-
-        value = JSON.stringify(value);
-
-        if (this.secret) {
-            value = await encrypt(value as string, this.secret);
-        }
-
-        return value as string;
-    }
-
-
     async all(): Promise<T> {
         let stack: Promise<void>[] = [],
             values: T = {} as T;
 
         await this.instance.iterate((v: unknown, k: string) => {
             stack.push(
-                this.deserialize(v)
+                deserialize(v, this.secret)
                     .then((value) => {
                         if (value === undefined) {
                             return;
                         }
 
-                        values[k as keyof T] = value;
+                        values[k as keyof T] = value as T[keyof T];
                     })
                     .catch(() => {})
             )
@@ -107,7 +107,7 @@ class Local<T> {
 
         await this.instance.iterate(async (v, k, i) => {
             let key = k as keyof T,
-                value = await this.deserialize(v).catch(() => undefined);
+                value = await deserialize(v, this.secret).catch(() => undefined) as T[keyof T];
 
             if (value === undefined) {
                 return;
@@ -128,7 +128,7 @@ class Local<T> {
     }
 
     async get(key: keyof T) {
-        return await this.deserialize( await this.instance.getItem(key as string) ).catch(() => undefined);
+        return await deserialize( await this.instance.getItem(key as string), this.secret ).catch(() => undefined);
     }
 
     async only(...keys: (keyof T)[]) {
@@ -162,10 +162,11 @@ class Local<T> {
 
         await this.instance.setItem(
             key as string,
-            await this.serialize(value).catch(() => {
-                ok = false;
-                return undefined;
-            })
+            await serialize(value, this.secret)
+                .catch(() => {
+                    ok = false;
+                    return undefined;
+                })
         );
 
         return ok;
