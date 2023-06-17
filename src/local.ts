@@ -40,12 +40,7 @@ class Local<T> {
         }
 
         if (typeof value === 'string') {
-            try {
-                value = JSON.parse(value);
-            }
-            catch {
-                return undefined;
-            }
+            value = JSON.parse(value);
         }
 
         return value as T[keyof T];
@@ -72,13 +67,15 @@ class Local<T> {
 
         await this.instance.iterate((v: unknown, k: string) => {
             stack.push(
-                this.deserialize(v).then((value) => {
-                    if (value === undefined) {
-                        return;
-                    }
+                this.deserialize(v)
+                    .then((value) => {
+                        if (value === undefined) {
+                            return;
+                        }
 
-                    values[k as keyof T] = value;
-                })
+                        values[k as keyof T] = value;
+                    })
+                    .catch(() => {})
             )
         });
 
@@ -110,7 +107,7 @@ class Local<T> {
 
         await this.instance.iterate(async (v, k, i) => {
             let key = k as keyof T,
-                value = await this.deserialize(v);
+                value = await this.deserialize(v).catch(() => undefined);
 
             if (value === undefined) {
                 return;
@@ -131,7 +128,7 @@ class Local<T> {
     }
 
     async get(key: keyof T) {
-        return await this.deserialize( await this.instance.getItem(key as string) );
+        return await this.deserialize( await this.instance.getItem(key as string) ).catch(() => undefined);
     }
 
     async only(...keys: (keyof T)[]) {
@@ -139,17 +136,39 @@ class Local<T> {
     }
 
     async replace(values: T) {
-        let stack: Promise<void>[] = [];
+        let failed: string[] = [],
+            stack: Promise<void>[] = [];
 
         for (let key in values) {
-            stack.push( this.set(key, values[key]) );
+            stack.push(
+                this.set(key, values[key])
+                    .then((ok) => {
+                        if (ok) {
+                            return;
+                        }
+
+                        failed.push(key);
+                    })
+            );
         }
 
         await Promise.allSettled(stack);
+
+        return failed;
     }
 
     async set(key: keyof T, value: T[keyof T]) {
-        await this.instance.setItem(key as string, await this.serialize(value));
+        let ok = true;
+
+        await this.instance.setItem(
+            key as string,
+            await this.serialize(value).catch(() => {
+                ok = false;
+                return undefined;
+            })
+        );
+
+        return ok;
     }
 }
 
