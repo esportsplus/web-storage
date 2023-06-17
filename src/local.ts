@@ -132,7 +132,7 @@ class Local<T> {
     }
 
     async only(...keys: (keyof T)[]) {
-        return await this.filter(({ key }) => keys.includes(key));
+        return await this.filter( ({ key }) => keys.includes(key) );
     }
 
     async replace(values: T) {
