@@ -6,7 +6,7 @@
     },
     "description": "Web storage utility",
     "devDependencies": {
-        "@esportsplus/typescript": "^0.0.21"
+        "@esportsplus/typescript": "^0.1.2"
     },
     "main": "build/index.js",
     "name": "@esportsplus/web-storage",
