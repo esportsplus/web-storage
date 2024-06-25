@@ -1,12 +1,12 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/crypto": "^0.0.7",
+        "@esportsplus/crypto": "^0.0.8",
         "localforage": "^1.10.0"
     },
     "description": "Web storage utility",
     "devDependencies": {
-        "@esportsplus/typescript": "^0.1.2"
+        "@esportsplus/typescript": "^0.4.6"
     },
     "main": "build/index.js",
     "name": "@esportsplus/web-storage",
