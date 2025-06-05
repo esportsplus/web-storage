@@ -1,12 +1,12 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/crypto": "^0.0.15",
+        "@esportsplus/crypto": "^0.0.18",
         "localforage": "^1.10.0"
     },
     "description": "Web storage utility",
     "devDependencies": {
-        "@esportsplus/typescript": "^0.6.6"
+        "@esportsplus/typescript": "^0.8.11"
     },
     "main": "build/index.js",
     "name": "@esportsplus/web-storage",
@@ -14,9 +14,10 @@
     "scripts": {
         "build": "tsc && tsc-alias",
         "-": "-",
-        "prepare": "npm run build",
-        "prepublishOnly": "npm run build"
+        "prepare": "pnpm build",
+        "prepublishOnly": "pnpm build"
     },
+    "type": "module",
     "types": "build/index.d.ts",
     "version": "0.1.41"
 }

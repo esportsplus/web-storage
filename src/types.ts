@@ -19,4 +19,5 @@ type Options = {
 };
 
 
-export { Driver, Filter, LocalForage, Options };
+export { Driver };
+export type { Filter, LocalForage, Options };
