@@ -16,19 +16,23 @@ importers:
         version: 1.10.0
     devDependencies:
       '@esportsplus/typescript':
-        specifier: ^0.8.11
-        version: 0.8.11
+        specifier: ^0.9.1
+        version: 0.9.1
 
 packages:
 
-  '@esportsplus/cli-passthrough@0.0.6':
-    resolution: {integrity: sha512-G1/5WZjsN6S/k02M+G9yxB//gBqfjxeZeZj16O5Hn2iDUyKpIw9Y2wXrZXQWDizCS5MF/z7BURrNskCzVsaQRw==}
+  '@esportsplus/cli-passthrough@0.0.10':
+    resolution: {integrity: sha512-/DcLjDxIB9NponyFtMQ3ICCXUA/hH1hp4FaL6AOepG1TwvY8g9y1MVLM71Coq7e0NpxUZt1pg73z6KSrh3Xd0w==}
 
   '@esportsplus/crypto@0.1.0':
     resolution: {integrity: sha512-Sf4uDOJqm6t4OeHtkwZaDGOUjum2O7MmApzk/cuVmt0YTIk6hLQkRaeQEHIn8mEwltCf7mmHSZulTXG9rU6+VQ==}
 
-  '@esportsplus/typescript@0.8.11':
-    resolution: {integrity: sha512-fCcqjMyQRmXDyWDX3bUzRgpU/OEQjCdpCcUHVvRKoCquwWbIc1Y8hvdSwoDdCovObOJ7ejyY+B5ByJg8KIaKww==}
+  '@esportsplus/typescript@0.8.15':
+    resolution: {integrity: sha512-cMDuESTK2W2Qm0MdYxZTO29WzikUumVgmZNcfzhnblG5c8S0CQOAEPe8dUsnUOiu9s28sKlnem1PHCQ57uWTXQ==}
+    hasBin: true
+
+  '@esportsplus/typescript@0.9.1':
+    resolution: {integrity: sha512-nx/f0n/z8AhpkuUXYj7t6djDoHgJXII6Sh6xVn4WkOf2d10FzCN133Gwo7BC7RSbfMO7voFuiAPMfkyZQworXA==}
     hasBin: true
 
   '@esportsplus/utilities@0.9.3':
@@ -199,16 +203,22 @@ packages:
 
 snapshots:
 
-  '@esportsplus/cli-passthrough@0.0.6': {}
+  '@esportsplus/cli-passthrough@0.0.10': {}
 
   '@esportsplus/crypto@0.1.0':
     dependencies:
-      '@esportsplus/typescript': 0.8.11
+      '@esportsplus/typescript': 0.8.15
       '@esportsplus/utilities': 0.9.3
 
-  '@esportsplus/typescript@0.8.11':
+  '@esportsplus/typescript@0.8.15':
     dependencies:
-      '@esportsplus/cli-passthrough': 0.0.6
+      '@esportsplus/cli-passthrough': 0.0.10
+      tsc-alias: 1.8.16
+      typescript: 5.8.3
+
+  '@esportsplus/typescript@0.9.1':
+    dependencies:
+      '@esportsplus/cli-passthrough': 0.0.10
       tsc-alias: 1.8.16
       typescript: 5.8.3
 
