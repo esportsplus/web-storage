@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@esportsplus/crypto':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.2.3
+        version: 0.2.3
       localforage:
         specifier: ^1.10.0
         version: 1.10.0
@@ -24,19 +24,15 @@ packages:
   '@esportsplus/cli-passthrough@0.0.10':
     resolution: {integrity: sha512-/DcLjDxIB9NponyFtMQ3ICCXUA/hH1hp4FaL6AOepG1TwvY8g9y1MVLM71Coq7e0NpxUZt1pg73z6KSrh3Xd0w==}
 
-  '@esportsplus/crypto@0.1.0':
-    resolution: {integrity: sha512-Sf4uDOJqm6t4OeHtkwZaDGOUjum2O7MmApzk/cuVmt0YTIk6hLQkRaeQEHIn8mEwltCf7mmHSZulTXG9rU6+VQ==}
-
-  '@esportsplus/typescript@0.8.15':
-    resolution: {integrity: sha512-cMDuESTK2W2Qm0MdYxZTO29WzikUumVgmZNcfzhnblG5c8S0CQOAEPe8dUsnUOiu9s28sKlnem1PHCQ57uWTXQ==}
-    hasBin: true
+  '@esportsplus/crypto@0.2.3':
+    resolution: {integrity: sha512-lPtxSvmqLF8fCLfvNbLYo4VjEENGjr2o0DwQPG/IGobpuBM8mSvJ6RyX8cBUlJJvETFRDOY8lnWN2ohe4XYbiA==}
 
   '@esportsplus/typescript@0.9.1':
     resolution: {integrity: sha512-nx/f0n/z8AhpkuUXYj7t6djDoHgJXII6Sh6xVn4WkOf2d10FzCN133Gwo7BC7RSbfMO7voFuiAPMfkyZQworXA==}
     hasBin: true
 
-  '@esportsplus/utilities@0.9.3':
-    resolution: {integrity: sha512-G70J9vQoEzaNDdUwWBcYj1NPXQfMnVmo+X8Pw4sHZizVN+Q1N+mGTnlHFNsXNNKq1mmQHFD4+wAZCCSGVfFImA==}
+  '@esportsplus/utilities@0.13.2':
+    resolution: {integrity: sha512-4ZthBi2iBUt4u3HD+nH2K4eJ4CArwsmQoucPsQJOIEtKqYlO7ApOJQ/X8CFWt8wvxpf+aL2UQq4HpMNwS5FmwQ==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -205,16 +201,10 @@ snapshots:
 
   '@esportsplus/cli-passthrough@0.0.10': {}
 
-  '@esportsplus/crypto@0.1.0':
+  '@esportsplus/crypto@0.2.3':
     dependencies:
-      '@esportsplus/typescript': 0.8.15
-      '@esportsplus/utilities': 0.9.3
-
-  '@esportsplus/typescript@0.8.15':
-    dependencies:
-      '@esportsplus/cli-passthrough': 0.0.10
-      tsc-alias: 1.8.16
-      typescript: 5.8.3
+      '@esportsplus/typescript': 0.9.1
+      '@esportsplus/utilities': 0.13.2
 
   '@esportsplus/typescript@0.9.1':
     dependencies:
@@ -222,7 +212,7 @@ snapshots:
       tsc-alias: 1.8.16
       typescript: 5.8.3
 
-  '@esportsplus/utilities@0.9.3': {}
+  '@esportsplus/utilities@0.13.2': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

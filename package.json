@@ -1,7 +1,7 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/crypto": "^0.1.0",
+        "@esportsplus/crypto": "^0.2.3",
         "localforage": "^1.10.0"
     },
     "description": "Web storage utility",
