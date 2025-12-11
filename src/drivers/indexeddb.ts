@@ -1,11 +1,11 @@
-import type { Driver, DriverOptions } from './types';
+import type { Driver } from '~/types';
 
 
 let connections = new Map<string, Promise<IDBDatabase>>();
 
 
-function connect(name: string, storeName: string, version: number): Promise<IDBDatabase> {
-    let key = `${name}:${storeName}:${version}`;
+function connect(name: string, version: number): Promise<IDBDatabase> {
+    let key = `${name}:${version}`;
 
     if (!connections.has(key)) {
         connections.set(key, new Promise((resolve, reject) => {
@@ -14,8 +14,8 @@ function connect(name: string, storeName: string, version: number): Promise<IDBD
             request.onupgradeneeded = () => {
                 let db = request.result;
 
-                if (!db.objectStoreNames.contains(storeName)) {
-                    db.createObjectStore(storeName);
+                if (!db.objectStoreNames.contains(name)) {
+                    db.createObjectStore(name);
                 }
             };
 
@@ -39,18 +39,18 @@ class IndexedDBDriver<T> implements Driver<T> {
 
     private connection: Promise<IDBDatabase>;
 
-    private storeName: string;
+    private name: string;
 
 
-    constructor(options: DriverOptions) {
-        this.storeName = options.storeName || options.name;
-        this.connection = connect(options.name, this.storeName, options.version || 1);
+    constructor(name: string, version: number) {
+        this.connection = connect(name, version);
+        this.name = name;
     }
 
 
     async all(): Promise<T> {
         let db = await this.connection,
-            store = db.transaction(this.storeName, 'readonly').objectStore(this.storeName),
+            store = db.transaction(this.name, 'readonly').objectStore(this.name),
             [keys, values] = await Promise.all([
                 promisify(store.getAllKeys()),
                 promisify(store.getAll())
@@ -66,22 +66,22 @@ class IndexedDBDriver<T> implements Driver<T> {
 
     async clear(): Promise<void> {
         let db = await this.connection,
-            store = db.transaction(this.storeName, 'readwrite').objectStore(this.storeName);
+            store = db.transaction(this.name, 'readwrite').objectStore(this.name);
 
         await promisify(store.clear());
     }
 
     async count(): Promise<number> {
         let db = await this.connection,
-            store = db.transaction(this.storeName, 'readonly').objectStore(this.storeName);
+            store = db.transaction(this.name, 'readonly').objectStore(this.name);
 
         return promisify(store.count());
     }
 
     async delete(keys: (keyof T)[]): Promise<void> {
         let db = await this.connection,
-            tx = db.transaction(this.storeName, 'readwrite'),
-            store = tx.objectStore(this.storeName);
+            tx = db.transaction(this.name, 'readwrite'),
+            store = tx.objectStore(this.name);
 
         for (let i = 0, n = keys.length; i < n; i++) {
             store.delete(keys[i] as IDBValidKey);
@@ -95,21 +95,21 @@ class IndexedDBDriver<T> implements Driver<T> {
 
     async get(key: keyof T): Promise<T[keyof T] | undefined> {
         let db = await this.connection,
-            store = db.transaction(this.storeName, 'readonly').objectStore(this.storeName);
+            store = db.transaction(this.name, 'readonly').objectStore(this.name);
 
         return promisify(store.get(key as IDBValidKey));
     }
 
     async keys(): Promise<(keyof T)[]> {
         let db = await this.connection,
-            store = db.transaction(this.storeName, 'readonly').objectStore(this.storeName);
+            store = db.transaction(this.name, 'readonly').objectStore(this.name);
 
         return promisify(store.getAllKeys()) as Promise<(keyof T)[]>;
     }
 
     async map(fn: (value: T[keyof T], key: keyof T, i: number) => void | Promise<void>): Promise<void> {
         let db = await this.connection,
-            store = db.transaction(this.storeName, 'readonly').objectStore(this.storeName);
+            store = db.transaction(this.name, 'readonly').objectStore(this.name);
 
         return new Promise((resolve, reject) => {
             let cursor = store.openCursor(),
@@ -133,26 +133,26 @@ class IndexedDBDriver<T> implements Driver<T> {
     async only(keys: (keyof T)[]): Promise<Map<keyof T, T[keyof T]>> {
         let db = await this.connection,
             results = new Map<keyof T, T[keyof T]>(),
-            tx = db.transaction(this.storeName, 'readonly'),
-            store = tx.objectStore(this.storeName);
+            tx = db.transaction(this.name, 'readonly'),
+            store = tx.objectStore(this.name);
 
-        let promises = keys.map((key) =>
-            promisify(store.get(key as IDBValidKey)).then((value) => {
-                if (value !== undefined) {
-                    results.set(key, value);
-                }
-            })
+        await Promise.all(
+            keys.map((key) =>
+                promisify(store.get(key as IDBValidKey)).then((value) => {
+                    if (value !== undefined) {
+                        results.set(key, value);
+                    }
+                })
+            )
         );
-
-        await Promise.all(promises);
 
         return results;
     }
 
     async replace(entries: [keyof T, T[keyof T]][]): Promise<void> {
         let db = await this.connection,
-            tx = db.transaction(this.storeName, 'readwrite'),
-            store = tx.objectStore(this.storeName);
+            tx = db.transaction(this.name, 'readwrite'),
+            store = tx.objectStore(this.name);
 
         for (let i = 0; i < entries.length; i++) {
             store.put(entries[i][1], entries[i][0] as IDBValidKey);
@@ -167,7 +167,7 @@ class IndexedDBDriver<T> implements Driver<T> {
     async set(key: keyof T, value: T[keyof T]): Promise<boolean> {
         try {
             let db = await this.connection,
-                store = db.transaction(this.storeName, 'readwrite').objectStore(this.storeName);
+                store = db.transaction(this.name, 'readwrite').objectStore(this.name);
 
             await promisify(store.put(value, key as IDBValidKey));
 

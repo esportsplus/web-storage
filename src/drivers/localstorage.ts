@@ -1,4 +1,4 @@
-import type { Driver, DriverOptions } from './types';
+import type { Driver } from '~/types';
 
 
 class LocalStorageDriver<T> implements Driver<T> {
@@ -6,8 +6,8 @@ class LocalStorageDriver<T> implements Driver<T> {
     private prefix: string;
 
 
-    constructor(options: DriverOptions) {
-        this.prefix = `${options.name}:`;
+    constructor(name: string, version: number) {
+        this.prefix = `${name}:${version}:`;
     }
 
 
