@@ -1,8 +1,7 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/crypto": "^0.2.3",
-        "localforage": "^1.10.0"
+        "@esportsplus/crypto": "^0.2.3"
     },
     "description": "Web storage utility",
     "devDependencies": {
@@ -19,5 +18,5 @@
     },
     "type": "module",
     "types": "build/index.d.ts",
-    "version": "0.1.45"
+    "version": "0.2.0"
 }

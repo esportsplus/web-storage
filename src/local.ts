@@ -1,177 +1,196 @@
-import { Driver, Filter, LocalForage, Options } from '~/types';
+import type { Driver, DriverOptions, Filter } from '~/drivers/types';
 import { decrypt, encrypt } from '@esportsplus/crypto';
-import localforage from 'localforage';
+import { IndexedDBDriver } from '~/drivers/indexeddb';
+import { LocalStorageDriver } from '~/drivers/localstorage';
 
 
-async function deserialize(value: unknown, secret: null | string = null) {
-    if (secret && typeof value === 'string') {
-        value = await decrypt(value, secret);
+enum DriverType {
+    IndexedDB,
+    LocalStorage
+}
+
+type Options = DriverOptions & {
+    driver?: DriverType;
+};
+
+
+async function deserialize<V>(value: unknown, secret: string | null): Promise<V | undefined> {
+    if (value === undefined || value === null) {
+        return undefined;
     }
 
-    if (typeof value === 'string') {
-        value = JSON.parse(value);
+    if (secret && typeof value === 'string') {
+        try {
+            value = await decrypt(value, secret);
+            value = JSON.parse(value as string);
+        }
+        catch {
+            return undefined;
+        }
+    }
+
+    return value as V;
+}
+
+async function serialize<V>(value: V, secret: string | null): Promise<string | V> {
+    if (value === undefined || value === null) {
+        return value;
+    }
+
+    if (secret) {
+        return encrypt(JSON.stringify(value), secret);
     }
 
     return value;
 }
 
-async function serialize(value: unknown, secret: null | string = null) {
-    if (value === null || value === undefined) {
-        return undefined;
-    }
-
-    value = JSON.stringify(value);
-
-    if (secret) {
-        value = await encrypt(value as string, secret);
-    }
-
-    return value as string;
-}
-
 
 class Local<T> {
-    instance: LocalForage;
-    iterate: LocalForage['iterate'];
-    keys: LocalForage['keys'];
-    length: LocalForage['length'];
-    secret: null | string = null;
+    private driver: Driver<T>;
+    private secret: string | null;
 
 
     constructor(options: Options, secret?: string) {
-        switch ((options.driver || Driver.IndexedDB) as Driver) {
-            case Driver.LocalStorage:
-                options.driver = localforage.LOCALSTORAGE;
-                break;
-            default:
-                options.driver = localforage.INDEXEDDB;
-                break;
+        this.secret = secret || null;
+
+        if (options.driver === DriverType.LocalStorage) {
+            this.driver = new LocalStorageDriver<T>(options);
         }
-
-        this.instance = localforage.createInstance(
-            Object.assign(options, { storeName: options.name })
-        );
-        this.iterate = this.instance.iterate;
-        this.keys = this.instance.keys;
-        this.length = this.instance.length;
-
-        if (secret) {
-            this.secret = secret;
+        else {
+            this.driver = new IndexedDBDriver<T>(options);
         }
     }
 
 
     async all(): Promise<T> {
-        let stack: Promise<void>[] = [],
-            values: T = {} as T;
+        let raw = await this.driver.all(),
+            result = {} as T;
 
-        await this.instance.iterate((v: unknown, k: string) => {
-            stack.push(
-                deserialize(v, this.secret)
-                    .then((value) => {
-                        if (value === undefined) {
-                            return;
-                        }
+        for (let key in raw) {
+            let value = await deserialize<T[keyof T]>(raw[key], this.secret);
 
-                        values[k as keyof T] = value as T[keyof T];
-                    })
-                    .catch(() => {})
-            )
-        });
-
-        await Promise.allSettled(stack);
-
-        return values;
-    }
-
-    async clear() {
-        await this.instance.clear();
-    }
-
-    async delete(...keys: (keyof T)[]) {
-        let stack: Promise<void>[] = [];
-
-        for (let i = 0, n = keys.length; i < n; i++) {
-            stack.push( this.instance.removeItem(keys[i] as string) );
+            if (value !== undefined) {
+                (result as Record<string, unknown>)[key] = value;
+            }
         }
 
-        await Promise.allSettled(stack);
+        return result;
+    }
+
+    async clear(): Promise<void> {
+        return this.driver.clear();
+    }
+
+    async count(): Promise<number> {
+        return this.driver.count();
+    }
+
+    async delete(...keys: (keyof T)[]): Promise<void> {
+        return this.driver.delete(keys);
     }
 
     async filter(fn: Filter<T>): Promise<T> {
-        let stop: VoidFunction = () => {
-                stopped = true;
-            },
-            stopped: boolean = false,
-            values: T = {} as T;
+        let i = 0,
+            result = {} as T,
+            stop = () => { stopped = true; },
+            stopped = false;
 
-        await this.instance.iterate(async (v, k, i) => {
-            let key = k as keyof T,
-                value = await deserialize(v, this.secret).catch(() => undefined) as T[keyof T];
+        await this.driver.map(async (raw, key) => {
+            if (stopped) {
+                return;
+            }
+
+            let value = await deserialize<T[keyof T]>(raw, this.secret);
 
             if (value === undefined) {
                 return;
             }
 
-            if (await fn({ i, key, stop, value })) {
-                values[key] = value;
-            }
-
-            // LocalForage iterate will stop once a non
-            // undefined value is returned
-            if (stopped) {
-                return true;
+            if (await fn({ i: i++, key, stop, value })) {
+                result[key] = value;
             }
         });
 
-        return values;
+        return result;
     }
 
-    async get(key: keyof T) {
-        return await deserialize( await this.instance.getItem(key as string), this.secret ).catch(() => undefined);
+    async get(key: keyof T): Promise<T[keyof T] | undefined> {
+        return deserialize<T[keyof T]>(
+            await this.driver.get(key),
+            this.secret
+        );
     }
 
-    async only(...keys: (keyof T)[]) {
-        return await this.filter( ({ key }) => keys.includes(key) );
+    map(fn: (value: T[keyof T], key: keyof T, i: number) => void | Promise<void>): Promise<void> {
+        return this.driver.map(async (raw, key, i) => {
+            let value = await deserialize<T[keyof T]>(raw, this.secret);
+
+            if (value !== undefined) {
+                await fn(value, key, i);
+            }
+        });
     }
 
-    async replace(values: T) {
-        let failed: string[] = [],
-            stack: Promise<void>[] = [];
+    async keys(): Promise<(keyof T)[]> {
+        return this.driver.keys();
+    }
 
-        for (let key in values) {
-            stack.push(
-                this.set(key, values[key])
-                    .then((ok) => {
-                        if (ok) {
-                            return;
-                        }
+    length(): Promise<number> {
+        return this.driver.count();
+    }
 
-                        failed.push(key);
-                    })
-            );
+    async only(...keys: (keyof T)[]): Promise<T> {
+        let raw = await this.driver.only(keys),
+            result = {} as T;
+
+        for (let [key, value] of raw) {
+            let deserialized = await deserialize<T[keyof T]>(value, this.secret);
+
+            if (deserialized !== undefined) {
+                result[key] = deserialized;
+            }
         }
 
-        await Promise.allSettled(stack);
+        return result;
+    }
+
+    async replace(values: Partial<T>): Promise<string[]> {
+        let entries: [keyof T, unknown][] = [],
+            failed: string[] = [];
+
+        for (let key in values) {
+            try {
+                entries.push([
+                    key,
+                    await serialize(values[key], this.secret)
+                ]);
+            }
+            catch {
+                failed.push(key);
+            }
+        }
+
+        if (entries.length > 0) {
+            await this.driver.replace(entries as [keyof T, T[keyof T]][]);
+        }
 
         return failed;
     }
 
-    async set(key: keyof T, value: T[keyof T]) {
-        let ok = true;
-
-        await this.instance.setItem(
-            key as string,
-            await serialize(value, this.secret)
-                .catch(() => {
-                    ok = false;
-                    return undefined;
-                })
-        );
-
-        return ok;
+    async set(key: keyof T, value: T[keyof T]): Promise<boolean> {
+        try {
+            return this.driver.set(
+                key,
+                await serialize(value, this.secret) as T[keyof T]
+            );
+        }
+        catch {
+            return false;
+        }
     }
 }
 
 
 export default <T>(options: Options, secret?: string) => new Local<T>(options, secret);
+export { DriverType };
+export type { Filter, Options };
