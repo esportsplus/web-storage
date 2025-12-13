@@ -1,4 +1,4 @@
-import { decrypt, encrypt } from '@esportsplus/crypto';
+import { decrypt, encrypt } from '@esportsplus/utilities';
 import type { Driver, Filter, Options } from './types';
 import { DriverType } from './constants';
 import { IndexedDBDriver } from '~/drivers/indexeddb';
