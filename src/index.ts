@@ -190,3 +190,4 @@ export default <T>(options: Options, secret?: string) => {
     return new Local<T>(options, secret);
 };
 export { DriverType } from './constants';
+export type { Local };
