@@ -10,6 +10,10 @@
     "main": "build/index.js",
     "name": "@esportsplus/web-storage",
     "private": false,
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/esportsplus/web-storage"
+    },
     "scripts": {
         "build": "tsc && tsc-alias",
         "-": "-",
