@@ -1,7 +1,8 @@
 enum DriverType {
     IndexedDB,
     LocalStorage,
-    Memory
+    Memory,
+    SessionStorage
 }
 
 export { DriverType };

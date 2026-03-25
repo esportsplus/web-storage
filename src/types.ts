@@ -23,7 +23,7 @@ type MigrationContext = {
 type MigrationFn = (old: MigrationContext) => Promise<Record<string, unknown>>;
 
 type Options = {
-    driver?: DriverType.IndexedDB | DriverType.LocalStorage | DriverType.Memory;
+    driver?: DriverType.IndexedDB | DriverType.LocalStorage | DriverType.Memory | DriverType.SessionStorage;
     migrations?: Record<number, MigrationFn>;
     name: string;
     version: number;

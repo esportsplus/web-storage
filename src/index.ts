@@ -4,6 +4,7 @@ import { DriverType } from './constants';
 import { IndexedDBDriver } from '~/drivers/indexeddb';
 import { LocalStorageDriver } from '~/drivers/localstorage';
 import { MemoryDriver } from '~/drivers/memory';
+import { SessionStorageDriver } from '~/drivers/sessionstorage';
 
 
 const VERSION_KEY = '__version__';
@@ -146,6 +147,9 @@ class Local<T> {
         }
         else if (options.driver === DriverType.Memory) {
             this.driver = new MemoryDriver<T>(name, version);
+        }
+        else if (options.driver === DriverType.SessionStorage) {
+            this.driver = new SessionStorageDriver<T>(name, version);
         }
         else {
             this.driver = new IndexedDBDriver<T>(name, version);

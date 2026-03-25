@@ -566,6 +566,16 @@ describe('factory function', () => {
 
         expect(localStorage.getItem('factory-ls:1:name')).toBe('"test"');
     });
+
+    it('uses SessionStorage when DriverType.SessionStorage specified', async () => {
+        sessionStorage.clear();
+
+        let store = createLocal<TestData>({ driver: DriverType.SessionStorage, name: 'factory-ss', version: 1 });
+
+        await store.set('name', 'test');
+
+        expect(sessionStorage.getItem('factory-ss:1:name')).toBe('"test"');
+    });
 });
 
 
