@@ -7,48 +7,48 @@
 | Source modules | 5 |
 | Tested modules | 3 (60%) |
 | Test files | 3 |
-| Total tests | 77 |
+| Total tests | 91 |
 | Benchmarked modules | 0 (0%) |
-| Gaps found | 22 |
+| Gaps found | 9 (3 MED, 6 LOW) |
 
-Type-only modules (`types.ts`, `constants.ts`) excluded from tested count — no runtime logic.
+Type-only modules (`types.ts`, `constants.ts`) excluded — no runtime logic.
 
 
 ## Coverage Map
 
-### src/drivers/localstorage.ts — 25 tests in tests/drivers/localstorage.ts
+### src/drivers/localstorage.ts — 27 tests in tests/drivers/localstorage.ts
 
-| Method | Happy Path | Empty/Missing | Error Path | Edge Cases |
-|--------|-----------|---------------|------------|------------|
-| constructor | prefix format ✅ | — | — | — |
-| all() | ✅ | empty ✅ | unparseable JSON skip ✅ | — |
-| clear() | ✅ | — | — | prefix isolation ✅ |
-| count() | ✅ | zero ✅ | — | — |
-| delete() | ✅ | non-existent ✅ | — | — |
-| get() | string/num/arr/obj ✅ | undefined ✅ | — | — |
-| keys() | ✅ | empty ✅ | — | — |
-| map() | value/key/index ✅ | — | unparseable skip ✅ | — |
-| only() | ✅ | no matches ✅ | non-existent skip ✅ | — |
-| replace() | ✅ | — | — | — |
-| set() | returns true ✅ | — | — | — |
+| Method | Happy Path | Empty/Missing | Error/Edge | Notes |
+|--------|-----------|---------------|------------|-------|
+| constructor | prefix format ✅ | — | — | |
+| all() | ✅ | empty ✅ | unparseable skip ✅ | |
+| clear() | ✅ | — | prefix isolation ✅ | |
+| count() | ✅ | zero ✅ | — | |
+| delete() | ✅ | non-existent ✅ | — | |
+| get() | str/num/arr/obj ✅ | undefined ✅ | — | |
+| keys() | ✅ | empty ✅ | — | |
+| map() | specific values ✅ | — | unparseable skip ✅ | **empty store missing** |
+| only() | ✅ | no matches ✅ | non-existent skip ✅ | |
+| replace() | ✅ | — | — | |
+| set() | returns true ✅ | — | quota exceeded → false ✅ | overwrite ✅ |
 
-### src/drivers/indexeddb.ts — 23 tests in tests/drivers/indexeddb.ts
+### src/drivers/indexeddb.ts — 25 tests in tests/drivers/indexeddb.ts
 
-| Method | Happy Path | Empty/Missing | Error Path | Edge Cases |
-|--------|-----------|---------------|------------|------------|
-| connect() | ✅ | — | — | connection reuse ✅ |
-| all() | ✅ | empty ✅ | — | — |
-| clear() | ✅ | — | — | — |
-| count() | ✅ | zero ✅ | — | — |
-| delete() | ✅ | non-existent ✅ | — | — |
-| get() | string/num/arr/obj ✅ | undefined ✅ | — | — |
-| keys() | ✅ | empty ✅ | — | — |
-| map() | value/key/index ✅ | empty (no invoke) ✅ | — | — |
-| only() | ✅ | no matches ✅ | non-existent skip ✅ | — |
-| replace() | ✅ (with overwrite) | — | — | — |
-| set() | returns true ✅ | — | — | — |
+| Method | Happy Path | Empty/Missing | Error/Edge | Notes |
+|--------|-----------|---------------|------------|-------|
+| connect() | ✅ | — | — | reuse ✅ |
+| all() | ✅ | empty ✅ | — | |
+| clear() | ✅ | — | — | |
+| count() | ✅ | zero ✅ | — | |
+| delete() | ✅ | non-existent ✅ | — | |
+| get() | str/num/arr/obj ✅ | undefined ✅ | — | |
+| keys() | ✅ | empty ✅ | — | |
+| map() | specific values ✅ | empty ✅ | — | |
+| only() | ✅ | no matches ✅ | non-existent skip ✅ | |
+| replace() | ✅ (overwrite) | — | — | |
+| set() | returns true ✅ | — | — | overwrite ✅ |
 
-### src/index.ts — 29 tests in tests/index.ts
+### src/index.ts — 39 tests in tests/index.ts
 
 | Method | LS | LS+Encrypt | IDB | IDB+Encrypt |
 |--------|----|-----------|-----|-------------|
@@ -56,89 +56,53 @@ Type-only modules (`types.ts`, `constants.ts`) excluded from tested count — no
 | all() | ✅ | ✅ | ✅ | ❌ |
 | clear() | ✅ | — | ✅ | — |
 | count() | ✅ | — | ✅ | — |
-| delete() | ✅ | — | ❌ | — |
-| filter() | ✅ + stop | — | ❌ | — |
-| get() | string/num/arr/obj ✅ | string/num/arr ✅ | ✅ | string/obj ✅ |
-| keys() | ✅ | — | ❌ | — |
-| length() | ✅ | — | ❌ | — |
-| map() | ✅ | — | ❌ | — |
-| only() | ✅ | — | ❌ | — |
-| replace() | ✅ | ✅ | ❌ | — |
-| set() | string/num/arr/obj ✅ | string/num/arr ✅ | ✅ | string/obj ✅ |
+| delete() | ✅ | — | ✅ | — |
+| filter() | ✅ + stop | — | ✅ + stop | — |
+| get() | str/num/arr/obj ✅ | str/num/arr ✅ | ✅ | str/obj ✅ |
+| keys() | ✅ | — | ✅ | — |
+| length() | ✅ | — | ✅ | — |
+| map() | specific values ✅ | — | specific values ✅ | — |
+| only() | ✅ | — | ✅ | — |
+| replace() | ✅ | ✅ | ✅ | — |
+| set() | str/num/arr/obj ✅ | str/num/arr ✅ | ✅ | str/obj ✅ |
+
+**Error branches (LS+Encrypt):**
+| Branch | Status |
+|--------|--------|
+| decrypt fails → get returns undefined | ✅ |
+| encrypt fails → replace returns failed[] | ✅ |
+| encrypt fails → set returns false | ✅ |
 
 
-## Shallow Tests
+## Remaining Gaps
 
-| Test File | Method | Covered | Missing |
-|-----------|--------|---------|---------|
-| tests/drivers/localstorage.ts | `map()` | happy path, unparseable skip | empty store (no callback) |
-| tests/drivers/localstorage.ts | `set()` | returns true | returns false (quota exceeded) |
-| tests/drivers/localstorage.ts | `set()` | new key | overwrite existing key |
-| tests/drivers/indexeddb.ts | `set()` | returns true | returns false on error |
-| tests/drivers/indexeddb.ts | `set()` | new key | overwrite existing key |
-| tests/drivers/indexeddb.ts | `map()` | iteration + empty | specific key/value content assertions (only checks `toBeDefined()`) |
-| tests/drivers/localstorage.ts | `map()` | iteration | specific key/value content assertions (only checks `toBeDefined()`) |
-| tests/index.ts | `filter()` | stop mechanism | stop assertion doesn't verify result exclusion of stopped entry |
-| tests/index.ts | `map()` | iteration | weak assertions — `toBeDefined()` only, no value checks |
-| tests/index.ts | `get()` | existing keys | non-existent key returning undefined (at Local level) |
-| tests/index.ts | `replace()` | success | failed array path (encrypt throws → key pushed to failed[]) |
-| tests/index.ts | `set()` | success | returns false when serialize throws |
+### MED
 
+| # | Location | Gap | Why MED |
+|---|----------|-----|---------|
+| 1 | tests/drivers/localstorage.ts `map()` | Empty store — no callback invocations not tested | IDB map has this test; LS does not. Asymmetric. |
+| 2 | tests/index.ts Local IDB+encrypt | `all()` with encryption via IDB not tested | `all()` deserializes each entry — the IDB+encrypt path exercises cursor + decrypt loop together |
+| 3 | tests/index.ts Local | `get()` on non-existent key not tested at Local level | Covered at driver level but deserialize(undefined, secret) path untested at integration level |
 
-## Missing Tests (Priority Order)
+### LOW
 
-### HIGH — Asymmetric IDB coverage at Local level
-
-The Local class wraps both drivers, but 7 methods are only tested via LocalStorage. IDB uses cursors, transactions, and async patterns that differ from localStorage — bugs in the IDB path would go undetected.
-
-| Method | Risk | Details |
-|--------|------|---------|
-| `Local.delete()` via IDB | HIGH | IDB delete uses batch transaction with oncomplete/onerror |
-| `Local.filter()` via IDB | HIGH | IDB map uses cursor — filter stop interacts with cursor.continue() |
-| `Local.map()` via IDB | HIGH | cursor-based async iteration through Local's deserialize layer |
-| `Local.only()` via IDB | HIGH | IDB only uses parallel Promise.all gets |
-| `Local.keys()` via IDB | MED | thin wrapper, low risk |
-| `Local.length()` via IDB | MED | alias for count, low risk |
-| `Local.replace()` via IDB | MED | IDB replace uses batch transaction |
-
-### HIGH — Error/failure branches
-
-| Location | Branch | Risk |
-|----------|--------|------|
-| `index.ts:18-20` | `deserialize` catch (decrypt fails) → returns undefined | HIGH — silent data loss |
-| `index.ts:163-165` | `replace` catch (serialize fails) → pushes to failed[] | HIGH — only success path tested |
-| `index.ts:182-183` | `set` catch (serialize fails) → returns false | HIGH — only success path tested |
-| `localstorage.ts:124-126` | `set` catch (quota exceeded) → returns false | MED — storage limit behavior |
-| `indexeddb.ts:176-178` | `set` catch → returns false | MED — IDB write failure |
-
-### MED — Weak assertions
-
-| Test File | Method | Issue |
-|-----------|--------|-------|
-| tests/drivers/localstorage.ts | `map()` line 140-143 | Checks `entries[i].value` is `toBeDefined()` — not specific values |
-| tests/drivers/indexeddb.ts | `map()` line 156-160 | Same weakness |
-| tests/index.ts | `map()` line 251-254 | Same weakness |
-
-### LOW — Minor gaps
-
-| Location | Gap |
-|----------|-----|
-| `index.ts:49` | `version = 1` default not tested (all tests pass explicit version) |
-| `indexeddb.ts:17` | `onupgradeneeded` when objectStore already exists (branch not exercised) |
-| `indexeddb.ts:22` | `connect` onerror path |
-| `indexeddb.ts:32` | `promisify` onerror path |
+| # | Location | Gap | Why LOW |
+|---|----------|-----|---------|
+| 4 | indexeddb.ts:22 | `connect` onerror path | Hard to trigger with fake-indexeddb; defensive error handling |
+| 5 | indexeddb.ts:32 | `promisify` onerror path | Same — requires IDB request failure |
+| 6 | indexeddb.ts:17 | `onupgradeneeded` when objectStore already exists | Defensive branch; fake-indexeddb doesn't easily simulate |
+| 7 | indexeddb.ts:176-178 | `set` returning false on error | Requires IDB write failure — hard to trigger |
+| 8 | index.ts:49 | `version = 1` default | All tests pass explicit version; trivial default |
+| 9 | index.ts:27-28 | `serialize` null/undefined passthrough | TypeScript prevents this at call sites |
 
 
 ## Missing Benchmarks
 
 | Module | Export | Reason |
 |--------|--------|--------|
-| src/drivers/localstorage.ts | `all()` | Iterates all keys + parse per entry |
-| src/drivers/localstorage.ts | `map()` | Full scan with callback |
-| src/drivers/indexeddb.ts | `all()` | Parallel IDB reads |
-| src/drivers/indexeddb.ts | `map()` | Cursor iteration |
-| src/index.ts | `filter()` | Full scan + deserialize + predicate |
-| src/index.ts | `replace()` | Batch serialize + write |
+| src/drivers/localstorage.ts | `all()`, `map()` | Full scan + parse per entry |
+| src/drivers/indexeddb.ts | `all()`, `map()` | Parallel IDB reads / cursor iteration |
+| src/index.ts | `filter()`, `replace()` | Full scan + deserialize + predicate / batch serialize |
 
 
 ## Stale Tests
@@ -148,8 +112,8 @@ None found.
 
 ## Recommendations
 
-1. **Add IDB smoke tests** for `delete`, `filter`, `keys`, `map`, `only`, `replace` at the Local class level — 6 tests close the asymmetric coverage gap
-2. **Test error branches**: make mock `encrypt` throw to exercise `replace` failed[] path and `set` returning false; make mock `decrypt` throw to exercise `deserialize` returning undefined
-3. **Strengthen map assertions** in all 3 test files: assert specific key/value pairs instead of `toBeDefined()`
-4. **Add `set` overwrite test** to both driver test files: set key, set same key to new value, verify get returns new value and count stays 1
-5. **Add CI test step** — GitHub workflows only build/publish, no test gate before publish
+1. Add `map()` empty store test to LocalStorageDriver (1 test — closes MED #1)
+2. Add `all()` with encryption via IDB (1 test — closes MED #2)
+3. Add `get()` non-existent key at Local level (1 test — closes MED #3)
+4. LOW gaps (#4-9) are acceptable risk — internal IDB error paths require mocking IndexedDB internals which adds fragile test infrastructure for minimal coverage gain
+5. Add CI test step — GitHub workflows still only build/publish with no test gate
