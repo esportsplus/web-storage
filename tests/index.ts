@@ -467,8 +467,9 @@ describe('Local (LocalStorage driver)', () => {
 describe('Local (Memory driver)', () => {
     let store: Local<TestData>;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         store = createLocal<TestData>({ driver: DriverType.Memory, name: 'test', version: 1 });
+        await store.clear();
     });
 
 
@@ -1049,8 +1050,9 @@ describe('TTL / Expiration (LocalStorage driver)', () => {
 describe('Change Subscriptions', () => {
     let store: Local<TestData>;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         store = createLocal<TestData>({ driver: DriverType.Memory, name: 'sub-test', version: 1 });
+        await store.clear();
     });
 
 
@@ -1180,5 +1182,271 @@ describe('Change Subscriptions', () => {
         await store.set('age', 30);
 
         expect(called).toBe(false);
+    });
+});
+
+
+describe('Migration Callbacks (Memory driver)', () => {
+
+    let migrationId = 0;
+
+    function muid() {
+        return `migration-test-${++migrationId}`;
+    }
+
+
+    it('transforms data when version changes', async () => {
+        type V1 = { name: string };
+        type V2 = { name: string; role: string };
+
+        let name = muid();
+
+        let v1 = createLocal<V1>({ driver: DriverType.Memory, name, version: 1 });
+
+        await v1.set('name', 'alice');
+
+        let v2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async (old) => {
+                    let all = await old.all();
+
+                    return { ...all, role: 'admin' };
+                }
+            },
+            name,
+            version: 2
+        });
+
+        expect(await v2.get('name')).toBe('alice');
+        expect(await v2.get('role')).toBe('admin');
+    });
+
+    it('migration runs only once — second open skips migration', async () => {
+        type V1 = { name: string };
+        type V2 = { name: string; role: string };
+
+        let migrationCount = 0,
+            name = muid();
+
+        let migration = async (old: { all(): Promise<Record<string, unknown>> }) => {
+            migrationCount++;
+
+            let all = await old.all();
+
+            return { ...all, role: 'admin' };
+        };
+
+        let v1 = createLocal<V1>({ driver: DriverType.Memory, name, version: 1 });
+
+        await v1.set('name', 'alice');
+
+        let v2a = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: { 2: migration },
+            name,
+            version: 2
+        });
+
+        await v2a.get('name');
+
+        expect(migrationCount).toBe(1);
+
+        let v2b = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: { 2: migration },
+            name,
+            version: 2
+        });
+
+        await v2b.get('name');
+
+        expect(migrationCount).toBe(1);
+    });
+
+    it('sequential migrations — v1 to v3 runs migration 2 then 3', async () => {
+        type V1 = { name: string };
+        type V3 = { name: string; role: string; verified: boolean };
+
+        let name = muid(),
+            order: number[] = [];
+
+        let v1 = createLocal<V1>({ driver: DriverType.Memory, name, version: 1 });
+
+        await v1.set('name', 'alice');
+
+        let v3 = createLocal<V3>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async (old) => {
+                    order.push(2);
+
+                    let all = await old.all();
+
+                    return { ...all, role: 'user' };
+                },
+                3: async (old) => {
+                    order.push(3);
+
+                    let all = await old.all();
+
+                    return { ...all, verified: true };
+                }
+            },
+            name,
+            version: 3
+        });
+
+        expect(await v3.get('name')).toBe('alice');
+        expect(await v3.get('role')).toBe('user');
+        expect(await v3.get('verified')).toBe(true);
+        expect(order).toEqual([2, 3]);
+    });
+
+    it('store without migrations works — backward compatible', async () => {
+        let name = muid(),
+            store = createLocal<TestData>({ driver: DriverType.Memory, name, version: 1 });
+
+        await store.set('name', 'alice');
+        await store.set('age', 30);
+
+        expect(await store.get('name')).toBe('alice');
+        expect(await store.get('age')).toBe(30);
+        expect(await store.count()).toBe(2);
+    });
+
+    it('version key is hidden from all()', async () => {
+        type V1 = { name: string };
+        type V2 = { name: string; role: string };
+
+        let name = muid();
+
+        let v1 = createLocal<V1>({ driver: DriverType.Memory, name, version: 1 });
+
+        await v1.set('name', 'alice');
+
+        let v2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async (old) => {
+                    let all = await old.all();
+
+                    return { ...all, role: 'admin' };
+                }
+            },
+            name,
+            version: 2
+        });
+
+        let all = await v2.all();
+
+        expect(all).toEqual({ name: 'alice', role: 'admin' });
+        expect('__version__' in all).toBe(false);
+    });
+
+    it('version key is hidden from keys()', async () => {
+        type V1 = { name: string };
+        type V2 = { name: string; role: string };
+
+        let name = muid();
+
+        let v1 = createLocal<V1>({ driver: DriverType.Memory, name, version: 1 });
+
+        await v1.set('name', 'alice');
+
+        let v2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async (old) => {
+                    let all = await old.all();
+
+                    return { ...all, role: 'admin' };
+                }
+            },
+            name,
+            version: 2
+        });
+
+        let keys = await v2.keys();
+
+        expect(keys.sort()).toEqual(['name', 'role']);
+        expect(keys).not.toContain('__version__');
+    });
+
+    it('version key is hidden from count()', async () => {
+        type V1 = { name: string };
+        type V2 = { name: string; role: string };
+
+        let name = muid();
+
+        let v1 = createLocal<V1>({ driver: DriverType.Memory, name, version: 1 });
+
+        await v1.set('name', 'alice');
+
+        let v2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async (old) => {
+                    let all = await old.all();
+
+                    return { ...all, role: 'admin' };
+                }
+            },
+            name,
+            version: 2
+        });
+
+        expect(await v2.count()).toBe(2);
+    });
+
+    it('migration removes old keys not returned by transform', async () => {
+        type V1 = { legacy: string; name: string };
+        type V2 = { name: string };
+
+        let name = muid();
+
+        let v1 = createLocal<V1>({ driver: DriverType.Memory, name, version: 1 });
+
+        await v1.set('name', 'alice');
+        await v1.set('legacy', 'old-value');
+
+        let v2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async (old) => {
+                    let all = await old.all();
+
+                    return { name: all['name'] as string };
+                }
+            },
+            name,
+            version: 2
+        });
+
+        expect(await v2.get('name')).toBe('alice');
+
+        let keys = await v2.keys();
+
+        expect(keys).toEqual(['name']);
+    });
+
+    it('migration with empty store produces correct result', async () => {
+        type V2 = { name: string; role: string };
+
+        let name = muid();
+
+        let v2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async () => {
+                    return { name: 'default', role: 'guest' };
+                }
+            },
+            name,
+            version: 2
+        });
+
+        expect(await v2.get('name')).toBe('default');
+        expect(await v2.get('role')).toBe('guest');
     });
 });

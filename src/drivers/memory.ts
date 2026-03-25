@@ -1,13 +1,24 @@
 import type { Driver } from '~/types';
 
 
+let stores = new Map<string, Map<unknown, unknown>>();
+
+
 class MemoryDriver<T> implements Driver<T> {
 
     private store: Map<keyof T, T[keyof T]>;
 
 
-    constructor(_name: string, _version: number) {
-        this.store = new Map();
+    constructor(name: string, _version: number) {
+        let existing = stores.get(name);
+
+        if (existing) {
+            this.store = existing as Map<keyof T, T[keyof T]>;
+        }
+        else {
+            this.store = new Map();
+            stores.set(name, this.store as Map<unknown, unknown>);
+        }
     }
 
 

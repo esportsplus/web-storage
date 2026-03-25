@@ -16,8 +16,15 @@ interface Driver<T> {
 
 type Filter<T> = (data: { i: number; key: keyof T; stop: VoidFunction; value: T[keyof T] }) => boolean | Promise<boolean>;
 
+type MigrationContext = {
+    all(): Promise<Record<string, unknown>>;
+};
+
+type MigrationFn = (old: MigrationContext) => Promise<Record<string, unknown>>;
+
 type Options = {
     driver?: DriverType.IndexedDB | DriverType.LocalStorage | DriverType.Memory;
+    migrations?: Record<number, MigrationFn>;
     name: string;
     version: number;
 };
@@ -37,4 +44,4 @@ type GlobalCallback<T> = (key: keyof T, newValue: T[keyof T] | undefined, oldVal
 type KeyCallback<T, K extends keyof T = keyof T> = (newValue: T[K] | undefined, oldValue: T[K] | undefined) => void;
 
 
-export type { Driver, Filter, GlobalCallback, KeyCallback, Options, SetOptions, TTLEnvelope };
+export type { Driver, Filter, GlobalCallback, KeyCallback, MigrationContext, MigrationFn, Options, SetOptions, TTLEnvelope };

@@ -9,8 +9,9 @@ type TestData = { age: number; name: string; tags: string[] };
 describe('MemoryDriver', () => {
     let driver: MemoryDriver<TestData>;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         driver = new MemoryDriver<TestData>('test', 1);
+        await driver.clear();
     });
 
 
@@ -87,15 +88,27 @@ describe('MemoryDriver', () => {
 
 
     describe('isolation', () => {
-        it('two drivers do not share data', async () => {
-            let driverA = new MemoryDriver<TestData>('app', 1),
-                driverB = new MemoryDriver<TestData>('app', 1);
+        it('two drivers with different names do not share data', async () => {
+            let driverA = new MemoryDriver<TestData>('app-a', 1),
+                driverB = new MemoryDriver<TestData>('app-b', 1);
 
+            await driverA.clear();
+            await driverB.clear();
             await driverA.set('name', 'alice');
             await driverB.set('name', 'bob');
 
             expect(await driverA.get('name')).toBe('alice');
             expect(await driverB.get('name')).toBe('bob');
+        });
+
+        it('two drivers with same name share data', async () => {
+            let driverA = new MemoryDriver<TestData>('shared', 1),
+                driverB = new MemoryDriver<TestData>('shared', 1);
+
+            await driverA.clear();
+            await driverA.set('name', 'alice');
+
+            expect(await driverB.get('name')).toBe('alice');
         });
     });
 
@@ -235,6 +248,7 @@ describe('MemoryDriver', () => {
 
             let objDriver = new MemoryDriver<ObjData>('obj', 1);
 
+            await objDriver.clear();
             await objDriver.set('meta', { nested: true, value: 99 });
 
             expect(await objDriver.get('meta')).toEqual({ nested: true, value: 99 });
