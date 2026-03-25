@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 
 import { describe, expect, it } from 'vitest';
 
-import { IndexedDBDriver } from './indexeddb';
+import { IndexedDBDriver } from '~/drivers/indexeddb';
 
 
 type TestData = { age: number; name: string; tags: string[] };

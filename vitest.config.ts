@@ -11,6 +11,6 @@ export default defineConfig({
     test: {
         environment: 'happy-dom',
         exclude: ['build/**', 'node_modules/**', 'storage/**'],
-        include: ['src/**/*.test.ts']
+        include: ['tests/**/*.ts']
     }
 });

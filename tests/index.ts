@@ -13,8 +13,8 @@ vi.mock('@esportsplus/utilities', () => ({
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import createLocal, { DriverType } from './index';
-import type { Local } from './index';
+import createLocal, { DriverType } from '~/index';
+import type { Local } from '~/index';
 
 
 type TestData = { age: number; name: string; tags: string[] };

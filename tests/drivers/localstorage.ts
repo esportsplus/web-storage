@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { LocalStorageDriver } from './localstorage';
+import { LocalStorageDriver } from '~/drivers/localstorage';
 
 
 type TestData = { age: number; name: string; tags: string[] };
