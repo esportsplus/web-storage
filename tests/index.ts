@@ -1460,3 +1460,412 @@ describe('Migration Callbacks (Memory driver)', () => {
         expect(await v2.get('role')).toBe('guest');
     });
 });
+
+
+describe('Local (SessionStorage driver)', () => {
+    let store: Local<TestData>;
+
+    beforeEach(() => {
+        sessionStorage.clear();
+        store = createLocal<TestData>({ driver: DriverType.SessionStorage, name: 'ss-test', version: 1 });
+    });
+
+
+    describe('with encryption', () => {
+        let encrypted: Local<TestData>;
+
+        beforeEach(() => {
+            encrypted = createLocal<TestData>({ driver: DriverType.SessionStorage, name: 'ss-enc', version: 1 }, 'test-secret');
+        });
+
+
+        it('set / get — round-trip with secret', async () => {
+            await encrypted.set('name', 'alice');
+
+            expect(await encrypted.get('name')).toBe('alice');
+        });
+    });
+
+
+    describe('without encryption', () => {
+        it('all — returns all entries', async () => {
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a', 'b']);
+
+            let result = await store.all();
+
+            expect(result).toEqual({ age: 30, name: 'alice', tags: ['a', 'b'] });
+        });
+
+        it('clear — removes all entries', async () => {
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+            await store.clear();
+
+            expect(await store.count()).toBe(0);
+            expect(await store.all()).toEqual({});
+        });
+
+        it('count — returns correct count', async () => {
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            expect(await store.count()).toBe(2);
+        });
+
+        it('delete — removes specified keys', async () => {
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a']);
+            await store.delete('name', 'tags');
+
+            expect(await store.get('name')).toBeUndefined();
+            expect(await store.get('tags')).toBeUndefined();
+            expect(await store.get('age')).toBe(30);
+        });
+
+        it('filter — filters entries by predicate', async () => {
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a', 'b']);
+
+            let result = await store.filter(({ key }) => key === 'name' || key === 'tags');
+
+            expect(result).toEqual({ name: 'alice', tags: ['a', 'b'] });
+        });
+
+        it('get — returns undefined for non-existent key', async () => {
+            expect(await store.get('name')).toBeUndefined();
+        });
+
+        it('keys — returns all keys', async () => {
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            let result = await store.keys();
+
+            expect(result.sort()).toEqual(['age', 'name']);
+        });
+
+        it('length — returns correct count', async () => {
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            expect(await store.length()).toBe(2);
+        });
+
+        it('map — iterates all entries', async () => {
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            let entries: { i: number; key: keyof TestData; value: TestData[keyof TestData] }[] = [];
+
+            await store.map((value, key, i) => {
+                entries.push({ i, key, value });
+            });
+
+            expect(entries).toHaveLength(2);
+
+            entries.sort((a, b) => (a.key as string).localeCompare(b.key as string));
+
+            expect(entries[0]).toEqual({ i: expect.any(Number), key: 'age', value: 25 });
+            expect(entries[1]).toEqual({ i: expect.any(Number), key: 'name', value: 'alice' });
+        });
+
+        it('only — returns subset of entries', async () => {
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a']);
+
+            let result = await store.only('name', 'tags');
+
+            expect(result).toEqual({ name: 'alice', tags: ['a'] });
+        });
+
+        it('replace — batch replace returns empty failed array', async () => {
+            let failed = await store.replace({ age: 25, name: 'bob', tags: ['x', 'y'] });
+
+            expect(failed).toEqual([]);
+            expect(await store.get('age')).toBe(25);
+            expect(await store.get('name')).toBe('bob');
+            expect(await store.get('tags')).toEqual(['x', 'y']);
+        });
+
+        it('set / get — basic round-trip', async () => {
+            await store.set('name', 'bob');
+
+            expect(await store.get('name')).toBe('bob');
+        });
+    });
+});
+
+
+describe('Memory driver — encryption', () => {
+    let encrypted: Local<TestData>;
+
+    beforeEach(async () => {
+        encrypted = createLocal<TestData>({ driver: DriverType.Memory, name: 'mem-enc', version: 1 }, 'test-secret');
+        await encrypted.clear();
+    });
+
+
+    it('set / get — round-trip with secret', async () => {
+        await encrypted.set('name', 'alice');
+
+        expect(await encrypted.get('name')).toBe('alice');
+    });
+
+    it('all — decrypts all values', async () => {
+        await encrypted.set('age', 30);
+        await encrypted.set('name', 'alice');
+
+        let result = await encrypted.all();
+
+        expect(result).toEqual({ age: 30, name: 'alice' });
+    });
+});
+
+
+describe('TTL / Expiration (Memory driver)', () => {
+    let now: number;
+
+    beforeEach(() => {
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('get — returns value before TTL expires', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'ttl-mem-1', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        expect(await store.get('name')).toBe('alice');
+    });
+
+    it('get — returns undefined after TTL expires', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'ttl-mem-2', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        now += 60001;
+
+        expect(await store.get('name')).toBeUndefined();
+    });
+
+    it('ttl — returns remaining ms', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'ttl-mem-3', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        now += 10000;
+
+        let remaining = await store.ttl('name');
+
+        expect(remaining).toBe(50000);
+    });
+
+    it('persist — removes TTL, value still accessible', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'ttl-mem-4', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        await store.persist('name');
+
+        now += 120000;
+
+        expect(await store.get('name')).toBe('alice');
+        expect(await store.ttl('name')).toBe(-1);
+    });
+
+    it('cleanup — removes all expired entries', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'ttl-mem-5', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30, { ttl: 10000 });
+        await store.set('tags', ['a']);
+
+        now += 10001;
+
+        await store.cleanup();
+
+        expect(await store.count()).toBe(1);
+        expect(await store.get('tags')).toEqual(['a']);
+    });
+});
+
+
+describe('get(key, factory) — Memory driver', () => {
+    let now: number;
+
+    beforeEach(() => {
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('returns factory value when key is missing', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'factory-mem-1', version: 1 });
+
+        let result = await store.get('name', () => 'default');
+
+        expect(result).toBe('default');
+    });
+
+    it('returns stored value when key exists — factory NOT called', async () => {
+        let called = false,
+            store = createLocal<TestData>({ driver: DriverType.Memory, name: 'factory-mem-2', version: 1 });
+
+        await store.set('name', 'alice');
+
+        let result = await store.get('name', () => {
+            called = true;
+            return 'default';
+        });
+
+        expect(result).toBe('alice');
+        expect(called).toBe(false);
+    });
+});
+
+
+describe('Cross-feature edge cases', () => {
+    let now: number;
+
+    beforeEach(() => {
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('persist — returns false for non-existent key', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'edge-persist-1', version: 1 });
+
+        expect(await store.persist('name')).toBe(false);
+    });
+
+    it('persist — returns true for already-permanent key', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'edge-persist-2', version: 1 });
+
+        await store.set('name', 'alice');
+
+        expect(await store.persist('name')).toBe(true);
+    });
+
+    it('cleanup — fires subscription notifications for expired keys', async () => {
+        let calls: { key: unknown; newValue: unknown; oldValue: unknown }[] = [],
+            store = createLocal<TestData>({ driver: DriverType.Memory, name: 'edge-cleanup-sub', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30);
+
+        store.subscribe((key, newValue, oldValue) => {
+            calls.push({ key, newValue, oldValue });
+        });
+
+        now += 10001;
+
+        await store.cleanup();
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0]).toEqual({ key: 'name', newValue: undefined, oldValue: 'alice' });
+    });
+
+    it('count — excludes __version__ key when migrations active', async () => {
+        type V1 = { name: string };
+        type V2 = { name: string; role: string };
+
+        let store1 = createLocal<V1>({ driver: DriverType.Memory, name: 'edge-count-ver', version: 1 });
+
+        await store1.set('name', 'alice');
+
+        let store2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async (old) => {
+                    let all = await old.all();
+
+                    return { ...all, role: 'admin' };
+                }
+            },
+            name: 'edge-count-ver',
+            version: 2
+        });
+
+        expect(await store2.count()).toBe(2);
+    });
+
+    it('keys — excludes __version__ key when migrations active', async () => {
+        type V1 = { name: string };
+        type V2 = { name: string; role: string };
+
+        let store1 = createLocal<V1>({ driver: DriverType.Memory, name: 'edge-keys-ver', version: 1 });
+
+        await store1.set('name', 'alice');
+
+        let store2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async (old) => {
+                    let all = await old.all();
+
+                    return { ...all, role: 'admin' };
+                }
+            },
+            name: 'edge-keys-ver',
+            version: 2
+        });
+
+        let keys = await store2.keys();
+
+        expect(keys.sort()).toEqual(['name', 'role']);
+        expect(keys).not.toContain('__version__');
+    });
+
+    it('get with factory — fires subscription notification', async () => {
+        let called = false,
+            store = createLocal<TestData>({ driver: DriverType.Memory, name: 'edge-factory-sub', version: 1 });
+
+        store.subscribe('name', () => { called = true; });
+
+        await store.get('name', () => 'lazy');
+
+        // Allow fire-and-forget set to complete
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(called).toBe(true);
+    });
+});
+
+
+describe('Compression + Encryption (LocalStorage)', () => {
+
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+
+    it('large value round-trips with encryption enabled', async () => {
+        type LargeData = { payload: string };
+
+        let store = createLocal<LargeData>({ driver: DriverType.LocalStorage, name: 'comp-enc', version: 1 }, 'test-secret'),
+            largeValue = 'a'.repeat(200);
+
+        await store.set('payload', largeValue);
+
+        expect(await store.get('payload')).toBe(largeValue);
+    });
+});
