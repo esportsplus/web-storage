@@ -137,11 +137,10 @@ describe('LocalStorageDriver', () => {
 
             expect(entries).toHaveLength(2);
 
-            for (let i = 0, n = entries.length; i < n; i++) {
-                expect(entries[i].i).toBe(i);
-                expect(typeof entries[i].key).toBe('string');
-                expect(entries[i].value).toBeDefined();
-            }
+            entries.sort((a, b) => (a.key as string).localeCompare(b.key as string));
+
+            expect(entries[0]).toEqual({ i: expect.any(Number), key: 'age', value: 25 });
+            expect(entries[1]).toEqual({ i: expect.any(Number), key: 'name', value: 'alice' });
         });
 
         it('skips entries with unparseable values', async () => {
