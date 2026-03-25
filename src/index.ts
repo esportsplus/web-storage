@@ -3,6 +3,7 @@ import type { Driver, Filter, Options, SetOptions, TTLEnvelope } from './types';
 import { DriverType } from './constants';
 import { IndexedDBDriver } from '~/drivers/indexeddb';
 import { LocalStorageDriver } from '~/drivers/localstorage';
+import { MemoryDriver } from '~/drivers/memory';
 
 
 function isEnvelope<V>(value: unknown): value is TTLEnvelope<V> {
@@ -69,6 +70,9 @@ class Local<T> {
 
         if (options.driver === DriverType.LocalStorage) {
             this.driver = new LocalStorageDriver<T>(name, version);
+        }
+        else if (options.driver === DriverType.Memory) {
+            this.driver = new MemoryDriver<T>(name, version);
         }
         else {
             this.driver = new IndexedDBDriver<T>(name, version);

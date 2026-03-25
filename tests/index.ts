@@ -464,6 +464,74 @@ describe('Local (LocalStorage driver)', () => {
 });
 
 
+describe('Local (Memory driver)', () => {
+    let store: Local<TestData>;
+
+    beforeEach(() => {
+        store = createLocal<TestData>({ driver: DriverType.Memory, name: 'test', version: 1 });
+    });
+
+
+    describe('without encryption', () => {
+        it('all — returns all entries', async () => {
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a', 'b']);
+
+            let result = await store.all();
+
+            expect(result).toEqual({ age: 30, name: 'alice', tags: ['a', 'b'] });
+        });
+
+        it('clear — removes all entries', async () => {
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+            await store.clear();
+
+            expect(await store.count()).toBe(0);
+            expect(await store.all()).toEqual({});
+        });
+
+        it('count — returns correct count', async () => {
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            expect(await store.count()).toBe(2);
+        });
+
+        it('delete — removes specified keys', async () => {
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a']);
+            await store.delete('name', 'tags');
+
+            expect(await store.get('name')).toBeUndefined();
+            expect(await store.get('tags')).toBeUndefined();
+            expect(await store.get('age')).toBe(30);
+        });
+
+        it('get — returns undefined for non-existent key', async () => {
+            expect(await store.get('name')).toBeUndefined();
+        });
+
+        it('keys — returns all keys', async () => {
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            let result = await store.keys();
+
+            expect(result.sort()).toEqual(['age', 'name']);
+        });
+
+        it('set / get — basic round-trip', async () => {
+            await store.set('name', 'bob');
+
+            expect(await store.get('name')).toBe('bob');
+        });
+    });
+});
+
+
 describe('factory function', () => {
 
     it('accepts optional secret parameter', () => {
@@ -474,6 +542,14 @@ describe('factory function', () => {
 
     it('defaults to IndexedDB when no driver specified', async () => {
         let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'test');
+
+        expect(await store.get('name')).toBe('test');
+    });
+
+    it('uses Memory when DriverType.Memory specified', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'factory-mem', version: 1 });
 
         await store.set('name', 'test');
 

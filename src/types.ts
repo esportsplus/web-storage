@@ -17,7 +17,7 @@ interface Driver<T> {
 type Filter<T> = (data: { i: number; key: keyof T; stop: VoidFunction; value: T[keyof T] }) => boolean | Promise<boolean>;
 
 type Options = {
-    driver?: DriverType.IndexedDB | DriverType.LocalStorage;
+    driver?: DriverType.IndexedDB | DriverType.LocalStorage | DriverType.Memory;
     name: string;
     version: number;
 };
