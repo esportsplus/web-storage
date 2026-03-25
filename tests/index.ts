@@ -568,6 +568,185 @@ describe('factory function', () => {
 });
 
 
+describe('get(key, factory) — IndexedDB driver', () => {
+    let now: number;
+
+    beforeEach(() => {
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('returns factory value when key is missing', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        let result = await store.get('name', () => 'default');
+
+        expect(result).toBe('default');
+    });
+
+    it('returns stored value when key exists — factory NOT called', async () => {
+        let called = false,
+            store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice');
+
+        let result = await store.get('name', () => {
+            called = true;
+            return 'default';
+        });
+
+        expect(result).toBe('alice');
+        expect(called).toBe(false);
+    });
+
+    it('works with async factory', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        let result = await store.get('name', async () => {
+            return 'async-value';
+        });
+
+        expect(result).toBe('async-value');
+    });
+
+    it('works with sync factory', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        let result = await store.get('age', () => 42);
+
+        expect(result).toBe(42);
+    });
+
+    it('fires-and-forgets the set — value persisted after await', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.get('name', () => 'lazy');
+
+        // Allow fire-and-forget set to complete
+        await new Promise((r) => setTimeout(r, 50));
+
+        let persisted = await store.get('name');
+
+        expect(persisted).toBe('lazy');
+    });
+
+    it('triggers factory on expired TTL entry', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'old', { ttl: 10000 });
+
+        now += 10001;
+
+        let result = await store.get('name', () => 'refreshed');
+
+        expect(result).toBe('refreshed');
+    });
+
+    it('without factory — backward compatible, returns undefined', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        let result = await store.get('name');
+
+        expect(result).toBeUndefined();
+    });
+});
+
+
+describe('get(key, factory) — LocalStorage driver', () => {
+    let now: number;
+
+    beforeEach(() => {
+        localStorage.clear();
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('returns factory value when key is missing', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'factory-ls', version: 1 });
+
+        let result = await store.get('name', () => 'default');
+
+        expect(result).toBe('default');
+    });
+
+    it('returns stored value when key exists — factory NOT called', async () => {
+        let called = false,
+            store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'factory-ls', version: 1 });
+
+        await store.set('name', 'alice');
+
+        let result = await store.get('name', () => {
+            called = true;
+            return 'default';
+        });
+
+        expect(result).toBe('alice');
+        expect(called).toBe(false);
+    });
+
+    it('works with async factory', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'factory-ls', version: 1 });
+
+        let result = await store.get('name', async () => {
+            return 'async-value';
+        });
+
+        expect(result).toBe('async-value');
+    });
+
+    it('works with sync factory', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'factory-ls', version: 1 });
+
+        let result = await store.get('age', () => 42);
+
+        expect(result).toBe(42);
+    });
+
+    it('fires-and-forgets the set — value persisted after await', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'factory-ls', version: 1 });
+
+        await store.get('name', () => 'lazy');
+
+        // Allow fire-and-forget set to complete
+        await new Promise((r) => setTimeout(r, 50));
+
+        let persisted = await store.get('name');
+
+        expect(persisted).toBe('lazy');
+    });
+
+    it('triggers factory on expired TTL entry', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'factory-ls', version: 1 });
+
+        await store.set('name', 'old', { ttl: 10000 });
+
+        now += 10001;
+
+        let result = await store.get('name', () => 'refreshed');
+
+        expect(result).toBe('refreshed');
+    });
+
+    it('without factory — backward compatible, returns undefined', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'factory-ls', version: 1 });
+
+        let result = await store.get('name');
+
+        expect(result).toBeUndefined();
+    });
+});
+
+
 describe('TTL / Expiration (IndexedDB driver)', () => {
     let now: number;
 

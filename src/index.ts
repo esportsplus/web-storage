@@ -172,19 +172,33 @@ class Local<T> {
         return result;
     }
 
-    async get(key: keyof T): Promise<T[keyof T] | undefined> {
+    async get(key: keyof T): Promise<T[keyof T] | undefined>;
+    async get(key: keyof T, factory: () => T[keyof T] | Promise<T[keyof T]>): Promise<T[keyof T]>;
+    async get(key: keyof T, factory?: () => T[keyof T] | Promise<T[keyof T]>): Promise<T[keyof T] | undefined> {
         let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(
                 await this.driver.get(key),
                 this.secret
             ),
+            missing = false,
             unwrapped = unwrap<T[keyof T]>(deserialized);
 
         if (deserialized === undefined) {
-            return undefined;
+            missing = true;
+        }
+        else if (unwrapped.expired) {
+            this.driver.delete([key]);
+            missing = true;
         }
 
-        if (unwrapped.expired) {
-            this.driver.delete([key]);
+        if (missing) {
+            if (factory) {
+                let value = await factory();
+
+                this.set(key, value);
+
+                return value;
+            }
+
             return undefined;
         }
 
