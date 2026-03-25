@@ -1,3 +1,4 @@
+import { compress, decompress } from '~/lz';
 import type { Driver } from '~/types';
 
 
@@ -35,11 +36,21 @@ class LocalStorageDriver<T> implements Driver<T> {
         }
 
         try {
+            if (value.charCodeAt(0) === 1) {
+                return JSON.parse(decompress(value.slice(1)));
+            }
+
             return JSON.parse(value);
         }
         catch {
             return undefined;
         }
+    }
+
+    private serialize(value: T[keyof T]): string {
+        let json = JSON.stringify(value);
+
+        return json.length >= 100 ? '\x01' + compress(json) : json;
     }
 
 
@@ -112,13 +123,13 @@ class LocalStorageDriver<T> implements Driver<T> {
 
     async replace(entries: [keyof T, T[keyof T]][]): Promise<void> {
         for (let i = 0, n = entries.length; i < n; i++) {
-            localStorage.setItem(this.key(entries[i][0]), JSON.stringify(entries[i][1]));
+            localStorage.setItem(this.key(entries[i][0]), this.serialize(entries[i][1]));
         }
     }
 
     async set(key: keyof T, value: T[keyof T]): Promise<boolean> {
         try {
-            localStorage.setItem(this.key(key), JSON.stringify(value));
+            localStorage.setItem(this.key(key), this.serialize(value));
             return true;
         }
         catch {

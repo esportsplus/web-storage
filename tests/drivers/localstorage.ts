@@ -232,6 +232,92 @@ describe('LocalStorageDriver', () => {
     });
 
 
+    describe('compression', () => {
+        type LargeData = { bio: string };
+
+        let largeDriver: LocalStorageDriver<LargeData>,
+            largeValue: string;
+
+        beforeEach(() => {
+            largeDriver = new LocalStorageDriver<LargeData>('lz', 1);
+            largeValue = 'a'.repeat(200);
+        });
+
+        it('stores small values without compression prefix', async () => {
+            await driver.set('name', 'alice');
+
+            let raw = localStorage.getItem('test:1:name')!;
+
+            expect(raw.charCodeAt(0)).not.toBe(1);
+            expect(raw).toBe('"alice"');
+        });
+
+        it('stores large values with \\x01 prefix', async () => {
+            await largeDriver.set('bio', largeValue);
+
+            let raw = localStorage.getItem('lz:1:bio')!;
+
+            expect(raw.charCodeAt(0)).toBe(1);
+        });
+
+        it('round-trips large values through set/get', async () => {
+            await largeDriver.set('bio', largeValue);
+
+            expect(await largeDriver.get('bio')).toBe(largeValue);
+        });
+
+        it('round-trips large values through replace/all', async () => {
+            await largeDriver.replace([['bio', largeValue]]);
+
+            let all = await largeDriver.all();
+
+            expect(all.bio).toBe(largeValue);
+        });
+
+        it('reads existing uncompressed values (backward compat)', async () => {
+            localStorage.setItem('lz:1:bio', JSON.stringify(largeValue));
+
+            expect(await largeDriver.get('bio')).toBe(largeValue);
+        });
+
+        it('compressed output is smaller than raw JSON', async () => {
+            await largeDriver.set('bio', largeValue);
+
+            let compressed = localStorage.getItem('lz:1:bio')!,
+                raw = JSON.stringify(largeValue);
+
+            expect(compressed.length).toBeLessThan(raw.length);
+        });
+
+        it('handles 100-byte boundary correctly', async () => {
+            type BoundaryData = { val: string };
+
+            let boundaryDriver = new LocalStorageDriver<BoundaryData>('bound', 1);
+
+            // JSON.stringify('"' + 'x'.repeat(97) + '"') = 97 chars + 2 quotes = "xxx...x" = 99 chars inside quotes, total 99+2=101? No.
+            // JSON.stringify('x'.repeat(96)) = '"' + 'x'*96 + '"' = 98 bytes < 100 => no compress
+            await boundaryDriver.set('val', 'x'.repeat(96));
+
+            let rawSmall = localStorage.getItem('bound:1:val')!;
+
+            expect(rawSmall.charCodeAt(0)).not.toBe(1);
+
+            // JSON.stringify('x'.repeat(98)) = '"' + 'x'*98 + '"' = 100 bytes >= 100 => compress
+            await boundaryDriver.set('val', 'x'.repeat(98));
+
+            let rawLarge = localStorage.getItem('bound:1:val')!;
+
+            expect(rawLarge.charCodeAt(0)).toBe(1);
+        });
+
+        it('parse returns undefined for corrupted compressed data', async () => {
+            localStorage.setItem('lz:1:bio', '\x01corrupted-data');
+
+            expect(await largeDriver.get('bio')).toBeUndefined();
+        });
+    });
+
+
     describe('set / get', () => {
         it('overwrites existing key', async () => {
             await driver.set('name', 'alice');
