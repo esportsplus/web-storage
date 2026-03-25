@@ -11,6 +11,7 @@ vi.mock('@esportsplus/utilities', () => ({
     })
 }));
 
+import { decrypt, encrypt } from '@esportsplus/utilities';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import createLocal, { DriverType } from '~/index';
@@ -255,6 +256,40 @@ describe('Local (LocalStorage driver)', () => {
             await encrypted.set('tags', ['a', 'b', 'c']);
 
             expect(await encrypted.get('tags')).toEqual(['a', 'b', 'c']);
+        });
+    });
+
+
+    describe('error branches', () => {
+        let encrypted: Local<TestData>;
+
+        beforeEach(() => {
+            encrypted = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'err', version: 1 }, 'test-secret');
+        });
+
+
+        it('get — returns undefined when decrypt fails', async () => {
+            await encrypted.set('name', 'alice');
+
+            vi.mocked(decrypt).mockRejectedValueOnce(new Error('decrypt failed'));
+
+            expect(await encrypted.get('name')).toBeUndefined();
+        });
+
+        it('replace — returns failed keys when encrypt throws', async () => {
+            vi.mocked(encrypt).mockRejectedValueOnce(new Error('encrypt failed'));
+
+            let failed = await encrypted.replace({ age: 25, name: 'bob' });
+
+            expect(failed).toContain('age');
+            expect(failed).toHaveLength(1);
+            expect(await encrypted.get('name')).toBe('bob');
+        });
+
+        it('set — returns false when encrypt throws', async () => {
+            vi.mocked(encrypt).mockRejectedValueOnce(new Error('encrypt failed'));
+
+            expect(await encrypted.set('name', 'alice')).toBe(false);
         });
     });
 

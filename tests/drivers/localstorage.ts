@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LocalStorageDriver } from '~/drivers/localstorage';
 
@@ -229,6 +229,16 @@ describe('LocalStorageDriver', () => {
 
             expect(await driver.get('name')).toBe('bob');
             expect(await driver.count()).toBe(1);
+        });
+
+        it('returns false when setItem throws', async () => {
+            let spy = vi.spyOn(localStorage, 'setItem').mockImplementationOnce(() => {
+                throw new Error('QuotaExceededError');
+            });
+
+            expect(await driver.set('name', 'alice')).toBe(false);
+
+            spy.mockRestore();
         });
 
         it('returns true on successful set', async () => {
