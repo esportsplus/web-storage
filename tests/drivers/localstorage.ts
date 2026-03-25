@@ -143,6 +143,16 @@ describe('LocalStorageDriver', () => {
             expect(entries[1]).toEqual({ i: expect.any(Number), key: 'name', value: 'alice' });
         });
 
+        it('does not invoke callback on empty store', async () => {
+            let called = false;
+
+            await driver.map(() => {
+                called = true;
+            });
+
+            expect(called).toBe(false);
+        });
+
         it('skips entries with unparseable values', async () => {
             await driver.set('name', 'alice');
             localStorage.setItem('test:1:age', 'not-json');

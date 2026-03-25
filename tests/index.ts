@@ -31,6 +31,17 @@ function uid() {
 describe('Local (IndexedDB driver)', () => {
 
     describe('with encryption', () => {
+        it('all — decrypts all values', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 }, 'test-secret');
+
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+
+            let result = await store.all();
+
+            expect(result).toEqual({ age: 30, name: 'alice' });
+        });
+
         it('set / get — round-trip with secret', async () => {
             let store = createLocal<TestData>({ name: uid(), version: 1 }, 'test-secret');
 
@@ -363,6 +374,10 @@ describe('Local (LocalStorage driver)', () => {
 
             expect(keys.length).toBeLessThanOrEqual(2);
             expect(visited).toBe(2);
+        });
+
+        it('get — returns undefined for non-existent key', async () => {
+            expect(await store.get('name')).toBeUndefined();
         });
 
         it('keys — returns all keys', async () => {
