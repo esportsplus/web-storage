@@ -249,4 +249,76 @@ describe('LZ Compression', () => {
             expect(decompress(compressed)).toBe(input);
         });
     });
+
+    describe('boundary cases', () => {
+        it('very large string (~100KB) round-trips', () => {
+            let items: Record<string, unknown>[] = [];
+
+            for (let i = 0; i < 2000; i++) {
+                items.push({
+                    data: 'x'.repeat(10),
+                    id: i,
+                    name: `entry_${i}`,
+                    value: i * 3.14
+                });
+            }
+
+            let input = JSON.stringify(items);
+
+            expect(input.length).toBeGreaterThan(100_000);
+
+            let compressed = compress(input);
+
+            expect(decompress(compressed)).toBe(input);
+        });
+
+        it('high-entropy string that does not compress well', () => {
+            let chars: string[] = [];
+
+            for (let i = 0; i < 500; i++) {
+                chars.push(String.fromCharCode(32 + (((i * 7) + (i * i * 3)) % 95)));
+            }
+
+            let input = chars.join(''),
+                compressed = compress(input);
+
+            expect(decompress(compressed)).toBe(input);
+        });
+
+        it('exact bit-width boundary (2-bit to 3-bit transition)', () => {
+            // dictSize starts at 3, numBits at 2. After 2 new dictionary entries
+            // dictSize=5 > (1<<2)=4, triggering numBits bump to 3.
+            // 'abcd' has 4 unique chars; pattern 'abcdabcd' creates entries:
+            //   'ab'->3 (dictSize=4), 'bc'->4 (dictSize=5, triggers 2->3 bit transition)
+            let input = 'abcdabcd',
+                compressed = compress(input);
+
+            expect(decompress(compressed)).toBe(input);
+        });
+
+        it('single char repeated 2 times', () => {
+            let compressed = compress('aa');
+
+            expect(decompress(compressed)).toBe('aa');
+        });
+
+        it('single char repeated 3 times', () => {
+            let compressed = compress('aaa');
+
+            expect(decompress(compressed)).toBe('aaa');
+        });
+
+        it('single char repeated 4 times', () => {
+            let compressed = compress('aaaa');
+
+            expect(decompress(compressed)).toBe('aaaa');
+        });
+
+        it('surrogate pairs (mathematical bold fraktur)', () => {
+            let input = '𝕳𝖊𝖑𝖑𝖔',
+                compressed = compress(input);
+
+            expect(decompress(compressed)).toBe(input);
+        });
+    });
 });
