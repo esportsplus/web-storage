@@ -223,6 +223,14 @@ describe('LocalStorageDriver', () => {
 
 
     describe('set / get', () => {
+        it('overwrites existing key', async () => {
+            await driver.set('name', 'alice');
+            await driver.set('name', 'bob');
+
+            expect(await driver.get('name')).toBe('bob');
+            expect(await driver.count()).toBe(1);
+        });
+
         it('returns true on successful set', async () => {
             expect(await driver.set('name', 'alice')).toBe(true);
         });
