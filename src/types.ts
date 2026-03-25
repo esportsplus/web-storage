@@ -22,5 +22,14 @@ type Options = {
     version: number;
 };
 
+type SetOptions = {
+    ttl?: number;
+};
 
-export type { Driver, Filter, Options };
+type TTLEnvelope<V> = {
+    __e: number;
+    __v: V;
+};
+
+
+export type { Driver, Filter, Options, SetOptions, TTLEnvelope };

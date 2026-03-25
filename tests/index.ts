@@ -12,7 +12,7 @@ vi.mock('@esportsplus/utilities', () => ({
 }));
 
 import { decrypt, encrypt } from '@esportsplus/utilities';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import createLocal, { DriverType } from '~/index';
 import type { Local } from '~/index';
@@ -488,5 +488,304 @@ describe('factory function', () => {
         await store.set('name', 'test');
 
         expect(localStorage.getItem('factory-ls:1:name')).toBe('"test"');
+    });
+});
+
+
+describe('TTL / Expiration (IndexedDB driver)', () => {
+    let now: number;
+
+    beforeEach(() => {
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('get — returns value before TTL expires', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        expect(await store.get('name')).toBe('alice');
+    });
+
+    it('get — returns undefined after TTL expires', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        now += 60001;
+
+        expect(await store.get('name')).toBeUndefined();
+    });
+
+    it('ttl — returns remaining ms', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        now += 10000;
+
+        let remaining = await store.ttl('name');
+
+        expect(remaining).toBe(50000);
+    });
+
+    it('ttl — returns -1 for no-TTL key', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice');
+
+        expect(await store.ttl('name')).toBe(-1);
+    });
+
+    it('ttl — returns -1 for non-existent key', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        expect(await store.ttl('name')).toBe(-1);
+    });
+
+    it('persist — removes TTL, value still accessible', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        await store.persist('name');
+
+        now += 120000;
+
+        expect(await store.get('name')).toBe('alice');
+        expect(await store.ttl('name')).toBe(-1);
+    });
+
+    it('cleanup — removes all expired entries', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30, { ttl: 10000 });
+        await store.set('tags', ['a']);
+
+        now += 10001;
+
+        await store.cleanup();
+
+        expect(await store.count()).toBe(1);
+        expect(await store.get('tags')).toEqual(['a']);
+    });
+
+    it('set — without TTL works as before (backward compat)', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice');
+
+        now += 999999;
+
+        expect(await store.get('name')).toBe('alice');
+    });
+
+    it('set — with TTL + encryption round-trips correctly', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 }, 'test-secret');
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        expect(await store.get('name')).toBe('alice');
+
+        now += 60001;
+
+        expect(await store.get('name')).toBeUndefined();
+    });
+
+    it('all — skips expired entries', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30);
+
+        now += 10001;
+
+        let result = await store.all();
+
+        expect(result).toEqual({ age: 30 });
+    });
+
+    it('filter — skips expired entries', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30);
+        await store.set('tags', ['a'], { ttl: 10000 });
+
+        now += 10001;
+
+        let result = await store.filter(() => true);
+
+        expect(result).toEqual({ age: 30 });
+    });
+
+    it('only — skips expired entries', async () => {
+        let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30);
+
+        now += 10001;
+
+        let result = await store.only('name', 'age');
+
+        expect(result).toEqual({ age: 30 });
+    });
+});
+
+
+describe('TTL / Expiration (LocalStorage driver)', () => {
+    let now: number;
+
+    beforeEach(() => {
+        localStorage.clear();
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('get — returns value before TTL expires', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        expect(await store.get('name')).toBe('alice');
+    });
+
+    it('get — returns undefined after TTL expires', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        now += 60001;
+
+        expect(await store.get('name')).toBeUndefined();
+    });
+
+    it('ttl — returns remaining ms', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        now += 10000;
+
+        let remaining = await store.ttl('name');
+
+        expect(remaining).toBe(50000);
+    });
+
+    it('ttl — returns -1 for no-TTL key', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice');
+
+        expect(await store.ttl('name')).toBe(-1);
+    });
+
+    it('ttl — returns -1 for non-existent key', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        expect(await store.ttl('name')).toBe(-1);
+    });
+
+    it('persist — removes TTL, value still accessible', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        await store.persist('name');
+
+        now += 120000;
+
+        expect(await store.get('name')).toBe('alice');
+        expect(await store.ttl('name')).toBe(-1);
+    });
+
+    it('cleanup — removes all expired entries', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30, { ttl: 10000 });
+        await store.set('tags', ['a']);
+
+        now += 10001;
+
+        await store.cleanup();
+
+        expect(await store.count()).toBe(1);
+        expect(await store.get('tags')).toEqual(['a']);
+    });
+
+    it('set — without TTL works as before (backward compat)', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice');
+
+        now += 999999;
+
+        expect(await store.get('name')).toBe('alice');
+    });
+
+    it('set — with TTL + encryption round-trips correctly', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-enc', version: 1 }, 'test-secret');
+
+        await store.set('name', 'alice', { ttl: 60000 });
+
+        expect(await store.get('name')).toBe('alice');
+
+        now += 60001;
+
+        expect(await store.get('name')).toBeUndefined();
+    });
+
+    it('all — skips expired entries', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30);
+
+        now += 10001;
+
+        let result = await store.all();
+
+        expect(result).toEqual({ age: 30 });
+    });
+
+    it('filter — skips expired entries', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30);
+        await store.set('tags', ['a'], { ttl: 10000 });
+
+        now += 10001;
+
+        let result = await store.filter(() => true);
+
+        expect(result).toEqual({ age: 30 });
+    });
+
+    it('only — skips expired entries', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.LocalStorage, name: 'ttl-ls', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+        await store.set('age', 30);
+
+        now += 10001;
+
+        let result = await store.only('name', 'age');
+
+        expect(result).toEqual({ age: 30 });
     });
 });
