@@ -83,6 +83,116 @@ describe('Local (IndexedDB driver)', () => {
             expect(await store.count()).toBe(2);
         });
 
+        it('delete — removes specified keys', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a']);
+            await store.delete('name', 'tags');
+
+            expect(await store.get('name')).toBeUndefined();
+            expect(await store.get('tags')).toBeUndefined();
+            expect(await store.get('age')).toBe(30);
+        });
+
+        it('filter — filters entries by predicate', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a', 'b']);
+
+            let result = await store.filter(({ key }) => key === 'name' || key === 'tags');
+
+            expect(result).toEqual({ name: 'alice', tags: ['a', 'b'] });
+        });
+
+        it('filter — stop mechanism halts iteration', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a']);
+
+            let visited = 0;
+
+            await store.filter(({ stop }) => {
+                visited++;
+
+                if (visited === 2) {
+                    stop();
+                }
+
+                return true;
+            });
+
+            expect(visited).toBe(2);
+        });
+
+        it('keys — returns all keys', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            let result = await store.keys();
+
+            expect(result.sort()).toEqual(['age', 'name']);
+        });
+
+        it('length — returns correct count', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            expect(await store.length()).toBe(2);
+        });
+
+        it('map — iterates all entries', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+            await store.set('age', 25);
+            await store.set('name', 'alice');
+
+            let entries: { i: number; key: keyof TestData; value: TestData[keyof TestData] }[] = [];
+
+            await store.map((value, key, i) => {
+                entries.push({ i, key, value });
+            });
+
+            expect(entries).toHaveLength(2);
+
+            entries.sort((a, b) => (a.key as string).localeCompare(b.key as string));
+
+            expect(entries[0]).toEqual({ i: expect.any(Number), key: 'age', value: 25 });
+            expect(entries[1]).toEqual({ i: expect.any(Number), key: 'name', value: 'alice' });
+        });
+
+        it('only — returns subset of entries', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+            await store.set('age', 30);
+            await store.set('name', 'alice');
+            await store.set('tags', ['a']);
+
+            let result = await store.only('name', 'tags');
+
+            expect(result).toEqual({ name: 'alice', tags: ['a'] });
+        });
+
+        it('replace — batch replace returns empty failed array', async () => {
+            let store = createLocal<TestData>({ name: uid(), version: 1 });
+
+            let failed = await store.replace({ age: 25, name: 'bob', tags: ['x', 'y'] });
+
+            expect(failed).toEqual([]);
+            expect(await store.get('age')).toBe(25);
+            expect(await store.get('name')).toBe('bob');
+            expect(await store.get('tags')).toEqual(['x', 'y']);
+        });
+
         it('set / get — basic round-trip', async () => {
             let store = createLocal<TestData>({ name: uid(), version: 1 });
 
