@@ -32,4 +32,9 @@ type TTLEnvelope<V> = {
 };
 
 
-export type { Driver, Filter, Options, SetOptions, TTLEnvelope };
+type GlobalCallback<T> = (key: keyof T, newValue: T[keyof T] | undefined, oldValue: T[keyof T] | undefined) => void;
+
+type KeyCallback<T, K extends keyof T = keyof T> = (newValue: T[K] | undefined, oldValue: T[K] | undefined) => void;
+
+
+export type { Driver, Filter, GlobalCallback, KeyCallback, Options, SetOptions, TTLEnvelope };

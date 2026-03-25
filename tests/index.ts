@@ -1044,3 +1044,141 @@ describe('TTL / Expiration (LocalStorage driver)', () => {
         expect(result).toEqual({ age: 30 });
     });
 });
+
+
+describe('Change Subscriptions', () => {
+    let store: Local<TestData>;
+
+    beforeEach(() => {
+        store = createLocal<TestData>({ driver: DriverType.Memory, name: 'sub-test', version: 1 });
+    });
+
+
+    it('subscribe(key, cb) fires on set', async () => {
+        let called = false;
+
+        store.subscribe('name', () => { called = true; });
+        await store.set('name', 'alice');
+
+        expect(called).toBe(true);
+    });
+
+    it('subscribe(key, cb) receives correct newValue and oldValue', async () => {
+        let captured: { newValue: unknown; oldValue: unknown } | null = null;
+
+        await store.set('name', 'alice');
+
+        store.subscribe('name', (newValue, oldValue) => {
+            captured = { newValue, oldValue };
+        });
+
+        await store.set('name', 'bob');
+
+        expect(captured).toEqual({ newValue: 'bob', oldValue: 'alice' });
+    });
+
+    it('subscribe(key, cb) fires on delete with undefined newValue', async () => {
+        let captured: { newValue: unknown; oldValue: unknown } | null = null;
+
+        await store.set('name', 'alice');
+
+        store.subscribe('name', (newValue, oldValue) => {
+            captured = { newValue, oldValue };
+        });
+
+        await store.delete('name');
+
+        expect(captured).toEqual({ newValue: undefined, oldValue: 'alice' });
+    });
+
+    it('subscribe(cb) fires for any key change', async () => {
+        let calls: { key: unknown; newValue: unknown }[] = [];
+
+        store.subscribe((key, newValue) => {
+            calls.push({ key, newValue });
+        });
+
+        await store.set('name', 'alice');
+        await store.set('age', 30);
+
+        expect(calls).toHaveLength(2);
+        expect(calls[0]).toEqual({ key: 'name', newValue: 'alice' });
+        expect(calls[1]).toEqual({ key: 'age', newValue: 30 });
+    });
+
+    it('unsubscribe stops notifications', async () => {
+        let count = 0,
+            unsubscribe = store.subscribe('name', () => { count++; });
+
+        await store.set('name', 'alice');
+
+        expect(count).toBe(1);
+
+        unsubscribe();
+
+        await store.set('name', 'bob');
+
+        expect(count).toBe(1);
+    });
+
+    it('subscribe fires on replace', async () => {
+        let calls: { key: unknown; newValue: unknown; oldValue: unknown }[] = [];
+
+        await store.set('name', 'alice');
+        await store.set('age', 25);
+
+        store.subscribe((key, newValue, oldValue) => {
+            calls.push({ key, newValue, oldValue });
+        });
+
+        await store.replace({ age: 30, name: 'bob' });
+
+        calls.sort((a, b) => (a.key as string).localeCompare(b.key as string));
+
+        expect(calls).toHaveLength(2);
+        expect(calls[0]).toEqual({ key: 'age', newValue: 30, oldValue: 25 });
+        expect(calls[1]).toEqual({ key: 'name', newValue: 'bob', oldValue: 'alice' });
+    });
+
+    it('subscribe fires on clear for each key', async () => {
+        let calls: { key: unknown; newValue: unknown; oldValue: unknown }[] = [];
+
+        await store.set('name', 'alice');
+        await store.set('age', 30);
+
+        store.subscribe((key, newValue, oldValue) => {
+            calls.push({ key, newValue, oldValue });
+        });
+
+        await store.clear();
+
+        calls.sort((a, b) => (a.key as string).localeCompare(b.key as string));
+
+        expect(calls).toHaveLength(2);
+        expect(calls[0]).toEqual({ key: 'age', newValue: undefined, oldValue: 30 });
+        expect(calls[1]).toEqual({ key: 'name', newValue: undefined, oldValue: 'alice' });
+    });
+
+    it('multiple subscribers on same key all fire', async () => {
+        let count1 = 0,
+            count2 = 0;
+
+        store.subscribe('name', () => { count1++; });
+        store.subscribe('name', () => { count2++; });
+
+        await store.set('name', 'alice');
+
+        expect(count1).toBe(1);
+        expect(count2).toBe(1);
+    });
+
+    it('subscribe does NOT fire for unrelated keys', async () => {
+        let called = false;
+
+        store.subscribe('name', () => { called = true; });
+
+        await store.set('age', 30);
+
+        expect(called).toBe(false);
+    });
+});

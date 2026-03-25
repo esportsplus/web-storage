@@ -1,5 +1,5 @@
 import { decrypt, encrypt } from '@esportsplus/utilities';
-import type { Driver, Filter, Options, SetOptions, TTLEnvelope } from './types';
+import type { Driver, Filter, GlobalCallback, KeyCallback, Options, SetOptions, TTLEnvelope } from './types';
 import { DriverType } from './constants';
 import { IndexedDBDriver } from '~/drivers/indexeddb';
 import { LocalStorageDriver } from '~/drivers/localstorage';
@@ -43,6 +43,26 @@ async function serialize<V>(value: V, secret: string | null): Promise<string | V
     return value;
 }
 
+function notify<T>(
+    globals: Set<GlobalCallback<T>>,
+    listeners: Map<keyof T, Set<KeyCallback<T>>>,
+    key: keyof T,
+    newValue: T[keyof T] | undefined,
+    oldValue: T[keyof T] | undefined
+): void {
+    let set = listeners.get(key);
+
+    if (set) {
+        for (let cb of set) {
+            cb(newValue, oldValue);
+        }
+    }
+
+    for (let cb of globals) {
+        cb(key, newValue, oldValue);
+    }
+}
+
 function unwrap<V>(value: unknown): { expired: boolean; hasTTL: boolean; value: V } {
     if (isEnvelope<V>(value)) {
         return {
@@ -60,10 +80,16 @@ class Local<T> {
 
     private driver: Driver<T>;
 
+    private globals: Set<GlobalCallback<T>>;
+
+    private listeners: Map<keyof T, Set<KeyCallback<T>>>;
+
     private secret: string | null;
 
 
     constructor(options: Options, secret?: string) {
+        this.globals = new Set();
+        this.listeners = new Map();
         this.secret = secret || null;
 
         let { name, version = 1 } = options;
@@ -109,22 +135,36 @@ class Local<T> {
     }
 
     async clear(): Promise<void> {
-        return this.driver.clear();
+        let allData = await this.all(),
+            keys = Object.keys(allData as Record<string, unknown>) as (keyof T)[];
+
+        await this.driver.clear();
+
+        for (let i = 0, n = keys.length; i < n; i++) {
+            notify(this.globals, this.listeners, keys[i], undefined, allData[keys[i]]);
+        }
     }
 
     async cleanup(): Promise<void> {
-        let expired: (keyof T)[] = [];
+        let expired: (keyof T)[] = [],
+            oldValues = new Map<keyof T, T[keyof T]>();
 
         await this.driver.map(async (raw, key) => {
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret);
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret),
+                unwrapped = unwrap<T[keyof T]>(deserialized);
 
-            if (deserialized !== undefined && unwrap(deserialized).expired) {
+            if (deserialized !== undefined && unwrapped.expired) {
                 expired.push(key);
+                oldValues.set(key, unwrapped.value);
             }
         });
 
         if (expired.length > 0) {
             await this.driver.delete(expired);
+
+            for (let i = 0, n = expired.length; i < n; i++) {
+                notify(this.globals, this.listeners, expired[i], undefined, oldValues.get(expired[i]));
+            }
         }
     }
 
@@ -133,7 +173,21 @@ class Local<T> {
     }
 
     async delete(...keys: (keyof T)[]): Promise<void> {
-        return this.driver.delete(keys);
+        let oldValues = new Map<keyof T, T[keyof T] | undefined>();
+
+        for (let i = 0, n = keys.length; i < n; i++) {
+            let raw = await this.driver.get(keys[i]),
+                deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret),
+                unwrapped = unwrap<T[keyof T]>(deserialized);
+
+            oldValues.set(keys[i], deserialized === undefined ? undefined : unwrapped.value);
+        }
+
+        await this.driver.delete(keys);
+
+        for (let i = 0, n = keys.length; i < n; i++) {
+            notify(this.globals, this.listeners, keys[i], undefined, oldValues.get(keys[i]));
+        }
     }
 
     async filter(fn: Filter<T>): Promise<T> {
@@ -294,9 +348,16 @@ class Local<T> {
 
     async replace(values: Partial<T>): Promise<string[]> {
         let entries: [keyof T, unknown][] = [],
-            failed: string[] = [];
+            failed: string[] = [],
+            oldValues = new Map<keyof T, T[keyof T] | undefined>();
 
         for (let key in values) {
+            let raw = await this.driver.get(key),
+                deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret),
+                unwrapped = unwrap<T[keyof T]>(deserialized);
+
+            oldValues.set(key, deserialized === undefined ? undefined : unwrapped.value);
+
             try {
                 entries.push([
                     key,
@@ -312,12 +373,22 @@ class Local<T> {
             await this.driver.replace(entries as [keyof T, T[keyof T]][]);
         }
 
+        for (let i = 0, n = entries.length; i < n; i++) {
+            let key = entries[i][0];
+
+            notify(this.globals, this.listeners, key, values[key] as T[keyof T], oldValues.get(key));
+        }
+
         return failed;
     }
 
     async set(key: keyof T, value: T[keyof T], options?: SetOptions): Promise<boolean> {
         try {
-            let stored: T[keyof T] | string;
+            let oldRaw = await this.driver.get(key),
+                oldDeserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(oldRaw, this.secret),
+                oldUnwrapped = unwrap<T[keyof T]>(oldDeserialized),
+                oldValue = oldDeserialized === undefined ? undefined : oldUnwrapped.value,
+                stored: T[keyof T] | string;
 
             if (options?.ttl != null && options.ttl > 0) {
                 let envelope: TTLEnvelope<T[keyof T]> = {
@@ -331,11 +402,40 @@ class Local<T> {
                 stored = await serialize(value, this.secret) as T[keyof T];
             }
 
-            return this.driver.set(key, stored as T[keyof T]);
+            let result = await this.driver.set(key, stored as T[keyof T]);
+
+            notify(this.globals, this.listeners, key, value, oldValue);
+
+            return result;
         }
         catch {
             return false;
         }
+    }
+
+    subscribe(callback: GlobalCallback<T>): () => void;
+    subscribe<K extends keyof T>(key: K, callback: KeyCallback<T, K>): () => void;
+    subscribe<K extends keyof T>(keyOrCallback: K | GlobalCallback<T>, callback?: KeyCallback<T, K>): () => void {
+        if (typeof keyOrCallback === 'function') {
+            let cb = keyOrCallback as GlobalCallback<T>;
+
+            this.globals.add(cb);
+
+            return () => { this.globals.delete(cb); };
+        }
+
+        let cb = callback as KeyCallback<T, K>,
+            key = keyOrCallback as K,
+            set = this.listeners.get(key);
+
+        if (!set) {
+            set = new Set();
+            this.listeners.set(key, set);
+        }
+
+        set.add(cb as KeyCallback<T>);
+
+        return () => { set.delete(cb as KeyCallback<T>); };
     }
 
     async ttl(key: keyof T): Promise<number> {
