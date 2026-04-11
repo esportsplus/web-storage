@@ -2,16 +2,22 @@ import 'fake-indexeddb/auto';
 
 import { vi } from 'vitest';
 
+let mockDecrypt = vi.fn(async (content: string) => {
+    return JSON.parse(atob(content));
+});
+
+let mockEncrypt = vi.fn(async (content: unknown) => {
+    return btoa(JSON.stringify(content));
+});
+
 vi.mock('@esportsplus/utilities', () => ({
-    decrypt: vi.fn(async (content: string, _password: string) => {
-        return atob(content);
-    }),
-    encrypt: vi.fn(async (content: unknown, _password: string) => {
-        return btoa(content as string);
-    })
+    encryption: vi.fn(async (_password: string) => ({
+        decrypt: (...args: unknown[]) => mockDecrypt(...args as [string]),
+        encrypt: (...args: unknown[]) => mockEncrypt(...args as [unknown])
+    }))
 }));
 
-import { decrypt, encrypt } from '@esportsplus/utilities';
+import { encryption } from '@esportsplus/utilities';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import createLocal, { DriverType } from '~/index';
@@ -282,13 +288,13 @@ describe('Local (LocalStorage driver)', () => {
         it('get — returns undefined when decrypt fails', async () => {
             await encrypted.set('name', 'alice');
 
-            vi.mocked(decrypt).mockRejectedValueOnce(new Error('decrypt failed'));
+            mockDecrypt.mockRejectedValueOnce(new Error('decrypt failed'));
 
             expect(await encrypted.get('name')).toBeUndefined();
         });
 
         it('replace — returns failed keys when encrypt throws', async () => {
-            vi.mocked(encrypt).mockRejectedValueOnce(new Error('encrypt failed'));
+            mockEncrypt.mockRejectedValueOnce(new Error('encrypt failed'));
 
             let failed = await encrypted.replace({ age: 25, name: 'bob' });
 
@@ -298,7 +304,7 @@ describe('Local (LocalStorage driver)', () => {
         });
 
         it('set — returns false when encrypt throws', async () => {
-            vi.mocked(encrypt).mockRejectedValueOnce(new Error('encrypt failed'));
+            mockEncrypt.mockRejectedValueOnce(new Error('encrypt failed'));
 
             expect(await encrypted.set('name', 'alice')).toBe(false);
         });
@@ -1867,5 +1873,144 @@ describe('Compression + Encryption (LocalStorage)', () => {
         await store.set('payload', largeValue);
 
         expect(await store.get('payload')).toBe(largeValue);
+    });
+});
+
+
+describe('get(key, factory) — error handling', () => {
+
+    it('rejects when factory throws sync error', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'factory-err-1', version: 1 });
+
+        await expect(store.get('name', () => { throw new Error('factory boom'); }))
+            .rejects.toThrow('factory boom');
+    });
+
+    it('rejects when factory returns rejected promise', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'factory-err-2', version: 1 });
+
+        await expect(store.get('name', async () => { throw new Error('async boom'); }))
+            .rejects.toThrow('async boom');
+    });
+});
+
+
+describe('set() TTL boundary values', () => {
+    let now: number;
+
+    beforeEach(() => {
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('ttl: 0 stores value without TTL envelope (treated as permanent)', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'ttl-zero', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 0 });
+
+        now += 999999;
+
+        expect(await store.get('name')).toBe('alice');
+        expect(await store.ttl('name')).toBe(-1);
+    });
+
+    it('ttl: -1 stores value without TTL envelope (treated as permanent)', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'ttl-neg', version: 1 });
+
+        await store.set('name', 'alice', { ttl: -1 });
+
+        now += 999999;
+
+        expect(await store.get('name')).toBe('alice');
+        expect(await store.ttl('name')).toBe(-1);
+    });
+});
+
+
+describe('persist() on expired key', () => {
+    let now: number;
+
+    beforeEach(() => {
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('returns false and deletes the expired entry', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'persist-expired', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+
+        now += 10001;
+
+        expect(await store.persist('name')).toBe(false);
+        expect(await store.get('name')).toBeUndefined();
+    });
+});
+
+
+describe('ttl() on expired key', () => {
+    let now: number;
+
+    beforeEach(() => {
+        now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+
+    it('returns -1 and deletes the expired entry', async () => {
+        let store = createLocal<TestData>({ driver: DriverType.Memory, name: 'ttl-expired', version: 1 });
+
+        await store.set('name', 'alice', { ttl: 10000 });
+
+        now += 10001;
+
+        expect(await store.ttl('name')).toBe(-1);
+        expect(await store.get('name')).toBeUndefined();
+    });
+});
+
+
+describe('Migration error handling', () => {
+
+    let migrationErrId = 0;
+
+    function meuid() {
+        return `migration-err-${++migrationErrId}`;
+    }
+
+
+    it('throwing migration makes store methods reject', async () => {
+        type V2 = { name: string };
+
+        let name = meuid();
+
+        let v1 = createLocal<{ name: string }>({ driver: DriverType.Memory, name, version: 1 });
+
+        await v1.set('name', 'alice');
+
+        let v2 = createLocal<V2>({
+            driver: DriverType.Memory,
+            migrations: {
+                2: async () => { throw new Error('migration failed'); }
+            },
+            name,
+            version: 2
+        });
+
+        await expect(v2.get('name')).rejects.toThrow('migration failed');
     });
 });

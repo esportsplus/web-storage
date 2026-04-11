@@ -78,7 +78,15 @@ class LocalStorageDriver<T> implements Driver<T> {
     }
 
     async count(): Promise<number> {
-        return this.getKeys().length;
+        let count = 0;
+
+        for (let i = 0, n = localStorage.length; i < n; i++) {
+            if (localStorage.key(i)?.startsWith(this.prefix)) {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     async delete(keys: (keyof T)[]): Promise<void> {

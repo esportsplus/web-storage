@@ -321,4 +321,51 @@ describe('LZ Compression', () => {
             expect(decompress(compressed)).toBe(input);
         });
     });
+
+    describe('error handling', () => {
+        it('throws on truncated compressed input', () => {
+            let compressed = compress('hello world this is a test string'),
+                truncated = compressed.substring(0, Math.floor(compressed.length / 2));
+
+            expect(() => decompress(truncated)).toThrow('LZ: unexpected end of compressed data');
+        });
+
+        it('throws on invalid decompression code', () => {
+            // Craft a compressed string with a valid header followed by an invalid code:
+            // Start with a valid literal (code=0, 8-bit char 'a'=97), then inject a code
+            // value that exceeds the current dictionary size.
+            // At that point: dictSize=4, numBits=2, valid codes: 0,1,2,3
+            // We need a code >= 4 which is impossible in 2 bits, so we need to grow
+            // the dictionary first. Instead, use a real compressed stream and corrupt it.
+            let compressed = compress('abcdefghijklmnop'),
+                chars = [...compressed.slice(0, -1)];
+
+            // Corrupt a middle byte to inject invalid codes
+            if (chars.length > 3) {
+                chars[2] = String.fromCharCode(chars[2].charCodeAt(0) ^ 0x7F);
+            }
+
+            let corrupted = chars.join('') + compressed[compressed.length - 1];
+
+            expect(() => decompress(corrupted)).toThrow();
+        });
+
+        it('throws when decompressed output exceeds size limit', () => {
+            // Use a moderately sized repetitive input that compresses quickly
+            // but decompresses to >10MB by building a string just over the limit
+            let chunk = 'abcdef'.repeat(100),
+                input = chunk.repeat(Math.ceil(10_485_761 / chunk.length) + 1);
+
+            let compressed = compress(input);
+
+            expect(() => decompress(compressed)).toThrow('LZ: decompressed output exceeds size limit');
+        }, 60000);
+
+        it('100KB repeated data round-trips without triggering size limit', () => {
+            let input = 'a'.repeat(100_000),
+                compressed = compress(input);
+
+            expect(decompress(compressed)).toBe(input);
+        });
+    });
 });

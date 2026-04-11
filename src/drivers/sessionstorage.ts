@@ -78,7 +78,15 @@ class SessionStorageDriver<T> implements Driver<T> {
     }
 
     async count(): Promise<number> {
-        return this.getKeys().length;
+        let count = 0;
+
+        for (let i = 0, n = sessionStorage.length; i < n; i++) {
+            if (sessionStorage.key(i)?.startsWith(this.prefix)) {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     async delete(keys: (keyof T)[]): Promise<void> {

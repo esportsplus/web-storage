@@ -2,6 +2,9 @@ type CompressCtx = { bitsInBuffer: number; buffer: number; numBits: number; outp
 type DecompressCtx = { bitPos: number; compressed: string; currentValue: number; pos: number };
 
 
+let MAX_DECOMPRESSED_SIZE = 10_485_760;
+
+
 function emitLiteral(ctx: CompressCtx, ch: string) {
     let code = ch.charCodeAt(0);
 
@@ -20,6 +23,10 @@ function readBits(ctx: DecompressCtx, n: number): number {
 
     for (let i = 0; i < n; i++) {
         if (ctx.bitPos > 15) {
+            if (ctx.pos >= ctx.compressed.length) {
+                throw new Error('LZ: unexpected end of compressed data');
+            }
+
             ctx.currentValue = ctx.compressed.charCodeAt(ctx.pos++) - 1;
             ctx.bitPos = 0;
         }
@@ -107,13 +114,7 @@ const compress = (input: string): string => {
 
     ctx.output.push((ctx.bitsInBuffer === 0 ? 16 : ctx.bitsInBuffer) + 1);
 
-    let chars: string[] = [];
-
-    for (let i = 0, n = ctx.output.length; i < n; i++) {
-        chars.push(String.fromCharCode(ctx.output[i]));
-    }
-
-    return chars.join('');
+    return String.fromCharCode(...ctx.output);
 };
 
 const decompress = (compressed: string): string => {
@@ -141,7 +142,8 @@ const decompress = (compressed: string): string => {
         return '';
     }
 
-    let result: string[] = [entry],
+    let parts: string[] = [entry],
+        totalLength = entry.length,
         w = entry;
 
     while (true) {
@@ -181,11 +183,17 @@ const decompress = (compressed: string): string => {
         }
 
         dictionary[slotIdx] = w + entry[0];
-        result.push(entry);
+        parts.push(entry);
+        totalLength += entry.length;
+
+        if (totalLength > MAX_DECOMPRESSED_SIZE) {
+            throw new Error('LZ: decompressed output exceeds size limit');
+        }
+
         w = entry;
     }
 
-    return result.join('');
+    return parts.join('');
 };
 
 

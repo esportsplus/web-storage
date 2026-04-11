@@ -44,4 +44,4 @@ type GlobalCallback<T> = (key: keyof T, newValue: T[keyof T] | undefined, oldVal
 type KeyCallback<T, K extends keyof T = keyof T> = (newValue: T[K] | undefined, oldValue: T[K] | undefined) => void;
 
 
-export type { Driver, Filter, GlobalCallback, KeyCallback, MigrationContext, MigrationFn, Options, SetOptions, TTLEnvelope };
+export type { Driver, Filter, GlobalCallback, KeyCallback, MigrationFn, Options, SetOptions, TTLEnvelope };

@@ -1,10 +1,12 @@
-import { decrypt, encrypt } from '@esportsplus/utilities';
-import type { Driver, Filter, GlobalCallback, KeyCallback, MigrationFn, Options, SetOptions, TTLEnvelope } from './types';
+import { encryption } from '@esportsplus/utilities';
 import { DriverType } from './constants';
 import { IndexedDBDriver } from '~/drivers/indexeddb';
 import { LocalStorageDriver } from '~/drivers/localstorage';
 import { MemoryDriver } from '~/drivers/memory';
 import { SessionStorageDriver } from '~/drivers/sessionstorage';
+
+import type { Cipher } from '@esportsplus/utilities';
+import type { Driver, Filter, GlobalCallback, KeyCallback, MigrationFn, Options, SetOptions, TTLEnvelope } from './types';
 
 
 const VERSION_KEY = '__version__';
@@ -17,15 +19,14 @@ function isEnvelope<V>(value: unknown): value is TTLEnvelope<V> {
         && '__v' in (value as Record<string, unknown>);
 }
 
-async function deserialize<V>(value: unknown, secret: string | null): Promise<V | undefined> {
+async function deserialize<V>(value: unknown, cipher: Cipher | null): Promise<V | undefined> {
     if (value === undefined || value === null) {
         return undefined;
     }
 
-    if (secret && typeof value === 'string') {
+    if (cipher && typeof value === 'string') {
         try {
-            value = await decrypt(value, secret);
-            value = JSON.parse(value as string);
+            value = await cipher.decrypt(value);
         }
         catch {
             return undefined;
@@ -35,13 +36,13 @@ async function deserialize<V>(value: unknown, secret: string | null): Promise<V 
     return value as V;
 }
 
-async function serialize<V>(value: V, secret: string | null): Promise<string | V> {
+async function serialize<V>(value: V, cipher: Cipher | null): Promise<string | V> {
     if (value === undefined || value === null) {
         return value;
     }
 
-    if (secret) {
-        return encrypt(JSON.stringify(value), secret);
+    if (cipher) {
+        return cipher.encrypt(value);
     }
 
     return value;
@@ -101,13 +102,13 @@ async function migrate<T>(driver: Driver<T>, migrations: Record<number, Migratio
 
         let transformed = await migrations[keys[i]]({ all: () => Promise.resolve(data) });
 
-        await driver.clear();
-
         let entries: [keyof T, T[keyof T]][] = [];
 
         for (let key in transformed) {
             entries.push([key as keyof T, transformed[key] as T[keyof T]]);
         }
+
+        await driver.clear();
 
         if (entries.length > 0) {
             await driver.replace(entries);
@@ -120,6 +121,8 @@ async function migrate<T>(driver: Driver<T>, migrations: Record<number, Migratio
 
 class Local<T> {
 
+    private cipher: Cipher | null;
+
     private driver: Driver<T>;
 
     private globals: Set<GlobalCallback<T>>;
@@ -128,15 +131,13 @@ class Local<T> {
 
     private ready: Promise<void>;
 
-    private secret: string | null;
-
     private version: number;
 
 
     constructor(options: Options, secret?: string) {
+        this.cipher = null;
         this.globals = new Set();
         this.listeners = new Map();
-        this.secret = secret || null;
 
         let { migrations, name, version = 1 } = options;
 
@@ -155,11 +156,15 @@ class Local<T> {
             this.driver = new IndexedDBDriver<T>(name, version);
         }
 
+        let init = secret
+            ? encryption(secret).then((c) => { this.cipher = c; })
+            : Promise.resolve();
+
         if (migrations) {
-            this.ready = migrate(this.driver, migrations, version);
+            this.ready = init.then(() => migrate(this.driver, migrations, version));
         }
         else {
-            this.ready = Promise.resolve();
+            this.ready = init;
         }
     }
 
@@ -176,7 +181,7 @@ class Local<T> {
                 continue;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw[key], this.secret),
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw[key], this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -192,7 +197,7 @@ class Local<T> {
         }
 
         if (expired.length > 0) {
-            this.driver.delete(expired);
+            await this.driver.delete(expired);
         }
 
         return result;
@@ -223,7 +228,7 @@ class Local<T> {
                 return;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret),
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized !== undefined && unwrapped.expired) {
@@ -244,23 +249,47 @@ class Local<T> {
     async count(): Promise<number> {
         await this.ready;
 
-        let total = await this.driver.count(),
-            raw = await this.driver.get(VERSION_KEY as keyof T);
+        let expired: (keyof T)[] = [],
+            total = 0;
 
-        return raw !== undefined ? total - 1 : total;
+        await this.driver.map(async (raw, key) => {
+            if (key as string === VERSION_KEY) {
+                return;
+            }
+
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
+                unwrapped = unwrap<T[keyof T]>(deserialized);
+
+            if (deserialized === undefined) {
+                return;
+            }
+
+            if (unwrapped.expired) {
+                expired.push(key);
+                return;
+            }
+
+            total++;
+        });
+
+        if (expired.length > 0) {
+            await this.driver.delete(expired);
+        }
+
+        return total;
     }
 
     async delete(...keys: (keyof T)[]): Promise<void> {
         await this.ready;
 
-        let oldValues = new Map<keyof T, T[keyof T] | undefined>();
+        let oldValues = new Map<keyof T, T[keyof T] | undefined>(),
+            raw = await this.driver.only(keys);
 
-        for (let i = 0, n = keys.length; i < n; i++) {
-            let raw = await this.driver.get(keys[i]),
-                deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret),
+        for (let [key, value] of raw) {
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
-            oldValues.set(keys[i], deserialized === undefined ? undefined : unwrapped.value);
+            oldValues.set(key, deserialized === undefined ? undefined : unwrapped.value);
         }
 
         await this.driver.delete(keys);
@@ -284,7 +313,7 @@ class Local<T> {
                 return;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret),
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -302,7 +331,7 @@ class Local<T> {
         });
 
         if (expired.length > 0) {
-            this.driver.delete(expired);
+            await this.driver.delete(expired);
         }
 
         return result;
@@ -315,7 +344,7 @@ class Local<T> {
 
         let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(
                 await this.driver.get(key),
-                this.secret
+                this.cipher
             ),
             missing = false,
             unwrapped = unwrap<T[keyof T]>(deserialized);
@@ -324,7 +353,7 @@ class Local<T> {
             missing = true;
         }
         else if (unwrapped.expired) {
-            this.driver.delete([key]);
+            await this.driver.delete([key]);
             missing = true;
         }
 
@@ -346,9 +375,34 @@ class Local<T> {
     async keys(): Promise<(keyof T)[]> {
         await this.ready;
 
-        let all = await this.driver.keys();
+        let expired: (keyof T)[] = [],
+            result: (keyof T)[] = [];
 
-        return all.filter((k) => k as string !== VERSION_KEY);
+        await this.driver.map(async (raw, key) => {
+            if (key as string === VERSION_KEY) {
+                return;
+            }
+
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
+                unwrapped = unwrap<T[keyof T]>(deserialized);
+
+            if (deserialized === undefined) {
+                return;
+            }
+
+            if (unwrapped.expired) {
+                expired.push(key);
+                return;
+            }
+
+            result.push(key);
+        });
+
+        if (expired.length > 0) {
+            await this.driver.delete(expired);
+        }
+
+        return result;
     }
 
     async length(): Promise<number> {
@@ -368,7 +422,7 @@ class Local<T> {
                 return;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret),
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -384,7 +438,7 @@ class Local<T> {
         });
 
         if (expired.length > 0) {
-            this.driver.delete(expired);
+            await this.driver.delete(expired);
         }
     }
 
@@ -396,7 +450,7 @@ class Local<T> {
             result = {} as T;
 
         for (let [key, value] of raw) {
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.secret),
+            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -412,7 +466,7 @@ class Local<T> {
         }
 
         if (expired.length > 0) {
-            this.driver.delete(expired);
+            await this.driver.delete(expired);
         }
 
         return result;
@@ -422,7 +476,7 @@ class Local<T> {
         await this.ready;
 
         let raw = await this.driver.get(key),
-            deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret);
+            deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher);
 
         if (deserialized === undefined) {
             return false;
@@ -431,7 +485,7 @@ class Local<T> {
         let unwrapped = unwrap<T[keyof T]>(deserialized);
 
         if (unwrapped.expired) {
-            this.driver.delete([key]);
+            await this.driver.delete([key]);
             return false;
         }
 
@@ -441,7 +495,7 @@ class Local<T> {
 
         return this.driver.set(
             key,
-            await serialize(unwrapped.value, this.secret) as T[keyof T]
+            await serialize(unwrapped.value, this.cipher) as T[keyof T]
         );
     }
 
@@ -450,11 +504,15 @@ class Local<T> {
 
         let entries: [keyof T, unknown][] = [],
             failed: string[] = [],
-            oldValues = new Map<keyof T, T[keyof T] | undefined>();
+            fetchKeys = Object.keys(values) as (keyof T)[],
+            oldValues = new Map<keyof T, T[keyof T] | undefined>(),
+            raw = await this.driver.only(fetchKeys);
 
-        for (let key in values) {
-            let raw = await this.driver.get(key),
-                deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret),
+        for (let key of fetchKeys) {
+            let value = raw.get(key),
+                deserialized = value !== undefined
+                    ? await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher)
+                    : undefined,
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             oldValues.set(key, deserialized === undefined ? undefined : unwrapped.value);
@@ -462,11 +520,11 @@ class Local<T> {
             try {
                 entries.push([
                     key,
-                    await serialize(values[key], this.secret)
+                    await serialize(values[key], this.cipher)
                 ]);
             }
             catch {
-                failed.push(key);
+                failed.push(key as string);
             }
         }
 
@@ -488,7 +546,7 @@ class Local<T> {
 
         try {
             let oldRaw = await this.driver.get(key),
-                oldDeserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(oldRaw, this.secret),
+                oldDeserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(oldRaw, this.cipher),
                 oldUnwrapped = unwrap<T[keyof T]>(oldDeserialized),
                 oldValue = oldDeserialized === undefined ? undefined : oldUnwrapped.value,
                 stored: T[keyof T] | string;
@@ -499,10 +557,10 @@ class Local<T> {
                     __v: value
                 };
 
-                stored = await serialize(envelope, this.secret) as T[keyof T];
+                stored = await serialize(envelope, this.cipher) as T[keyof T];
             }
             else {
-                stored = await serialize(value, this.secret) as T[keyof T];
+                stored = await serialize(value, this.cipher) as T[keyof T];
             }
 
             let result = await this.driver.set(key, stored as T[keyof T]);
@@ -545,7 +603,7 @@ class Local<T> {
         await this.ready;
 
         let raw = await this.driver.get(key),
-            deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.secret);
+            deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher);
 
         if (deserialized === undefined) {
             return -1;
@@ -558,7 +616,7 @@ class Local<T> {
         let remaining = deserialized.__e - Date.now();
 
         if (remaining <= 0) {
-            this.driver.delete([key]);
+            await this.driver.delete([key]);
             return -1;
         }
 
