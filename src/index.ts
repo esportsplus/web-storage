@@ -545,11 +545,18 @@ class Local<T> {
         await this.ready;
 
         try {
-            let oldRaw = await this.driver.get(key),
-                oldDeserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(oldRaw, this.cipher),
-                oldUnwrapped = unwrap<T[keyof T]>(oldDeserialized),
-                oldValue = oldDeserialized === undefined ? undefined : oldUnwrapped.value,
+            let hasSubscribers = this.globals.size > 0 || (this.listeners.get(key)?.size ?? 0) > 0,
+                oldValue: T[keyof T] | undefined,
                 stored: T[keyof T] | string;
+
+            if (hasSubscribers) {
+                let oldDeserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(
+                        await this.driver.get(key),
+                        this.cipher
+                    );
+
+                oldValue = oldDeserialized === undefined ? undefined : unwrap<T[keyof T]>(oldDeserialized).value;
+            }
 
             if (options?.ttl != null && options.ttl > 0) {
                 let envelope: TTLEnvelope<T[keyof T]> = {
@@ -565,7 +572,9 @@ class Local<T> {
 
             let result = await this.driver.set(key, stored as T[keyof T]);
 
-            notify(this.globals, this.listeners, key, value, oldValue);
+            if (hasSubscribers) {
+                notify(this.globals, this.listeners, key, value, oldValue);
+            }
 
             return result;
         }
