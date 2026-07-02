@@ -19,14 +19,16 @@ function isEnvelope<V>(value: unknown): value is TTLEnvelope<V> {
         && '__v' in (value as Record<string, unknown>);
 }
 
-async function deserialize<V>(value: unknown, cipher: Cipher | null): Promise<V | undefined> {
+function deserialize<V>(value: unknown): V | undefined;
+function deserialize<V>(value: unknown, cipher: Cipher): Promise<V | undefined>;
+function deserialize<V>(value: unknown, cipher?: Cipher): V | undefined | Promise<V | undefined> {
     if (value === undefined || value === null) {
         return undefined;
     }
 
-    if (cipher && typeof value === 'string') {
+    if (cipher !== undefined && typeof value === 'string') {
         try {
-            value = await cipher.decrypt(value);
+            return cipher.decrypt<V>(value).then((v) => v, () => undefined);
         }
         catch {
             return undefined;
@@ -181,7 +183,9 @@ class Local<T> {
                 continue;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw[key], this.cipher),
+            let deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw[key])
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw[key], this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -228,7 +232,9 @@ class Local<T> {
                 return;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
+            let deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized !== undefined && unwrapped.expired) {
@@ -257,7 +263,9 @@ class Local<T> {
                 return;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
+            let deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -286,7 +294,9 @@ class Local<T> {
             raw = await this.driver.only(keys);
 
         for (let [key, value] of raw) {
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher),
+            let deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value)
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             oldValues.set(key, deserialized === undefined ? undefined : unwrapped.value);
@@ -313,7 +323,9 @@ class Local<T> {
                 return;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
+            let deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -342,10 +354,10 @@ class Local<T> {
     async get(key: keyof T, factory?: () => T[keyof T] | Promise<T[keyof T]>): Promise<T[keyof T] | undefined> {
         await this.ready;
 
-        let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(
-                await this.driver.get(key),
-                this.cipher
-            ),
+        let raw = await this.driver.get(key),
+            deserialized = this.cipher === null
+                ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
             missing = false,
             unwrapped = unwrap<T[keyof T]>(deserialized);
 
@@ -383,7 +395,9 @@ class Local<T> {
                 return;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
+            let deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -422,7 +436,9 @@ class Local<T> {
                 return;
             }
 
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
+            let deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -450,7 +466,9 @@ class Local<T> {
             result = {} as T;
 
         for (let [key, value] of raw) {
-            let deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher),
+            let deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value)
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             if (deserialized === undefined) {
@@ -476,7 +494,9 @@ class Local<T> {
         await this.ready;
 
         let raw = await this.driver.get(key),
-            deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher);
+            deserialized = this.cipher === null
+                ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher);
 
         if (deserialized === undefined) {
             return false;
@@ -510,9 +530,9 @@ class Local<T> {
 
         for (let key of fetchKeys) {
             let value = raw.get(key),
-                deserialized = value !== undefined
-                    ? await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher)
-                    : undefined,
+                deserialized = this.cipher === null
+                    ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value)
+                    : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(value, this.cipher),
                 unwrapped = unwrap<T[keyof T]>(deserialized);
 
             oldValues.set(key, deserialized === undefined ? undefined : unwrapped.value);
@@ -550,10 +570,10 @@ class Local<T> {
                 stored: T[keyof T] | string;
 
             if (hasSubscribers) {
-                let oldDeserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(
-                        await this.driver.get(key),
-                        this.cipher
-                    );
+                let raw = await this.driver.get(key),
+                    oldDeserialized = this.cipher === null
+                        ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                        : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher);
 
                 oldValue = oldDeserialized === undefined ? undefined : unwrap<T[keyof T]>(oldDeserialized).value;
             }
@@ -612,7 +632,9 @@ class Local<T> {
         await this.ready;
 
         let raw = await this.driver.get(key),
-            deserialized = await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher);
+            deserialized = this.cipher === null
+                ? deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw)
+                : await deserialize<T[keyof T] | TTLEnvelope<T[keyof T]>>(raw, this.cipher);
 
         if (deserialized === undefined) {
             return -1;
