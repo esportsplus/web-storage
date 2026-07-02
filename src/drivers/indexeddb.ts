@@ -71,13 +71,6 @@ class IndexedDBDriver<T> implements Driver<T> {
         await promisify(store.clear());
     }
 
-    async count(): Promise<number> {
-        let db = await this.connection,
-            store = db.transaction(this.name, 'readonly').objectStore(this.name);
-
-        return promisify(store.count());
-    }
-
     async delete(keys: (keyof T)[]): Promise<void> {
         let db = await this.connection,
             tx = db.transaction(this.name, 'readwrite'),
@@ -98,13 +91,6 @@ class IndexedDBDriver<T> implements Driver<T> {
             store = db.transaction(this.name, 'readonly').objectStore(this.name);
 
         return promisify(store.get(key as IDBValidKey));
-    }
-
-    async keys(): Promise<(keyof T)[]> {
-        let db = await this.connection,
-            store = db.transaction(this.name, 'readonly').objectStore(this.name);
-
-        return promisify(store.getAllKeys()) as Promise<(keyof T)[]>;
     }
 
     async map(fn: (value: T[keyof T], key: keyof T, i: number) => void | Promise<void>): Promise<void> {

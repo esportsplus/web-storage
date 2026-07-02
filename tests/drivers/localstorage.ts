@@ -59,7 +59,6 @@ describe('LocalStorageDriver', () => {
             await driver.set('age', 30);
             await driver.clear();
 
-            expect(await driver.count()).toBe(0);
             expect(await driver.all()).toEqual({});
         });
     });
@@ -72,20 +71,6 @@ describe('LocalStorageDriver', () => {
             await d.set('name', 'test');
 
             expect(localStorage.getItem('myapp:2:name')).toBe('"test"');
-        });
-    });
-
-
-    describe('count', () => {
-        it('returns 0 when empty', async () => {
-            expect(await driver.count()).toBe(0);
-        });
-
-        it('returns correct count of stored items', async () => {
-            await driver.set('name', 'alice');
-            await driver.set('age', 30);
-
-            expect(await driver.count()).toBe(2);
         });
     });
 
@@ -104,22 +89,6 @@ describe('LocalStorageDriver', () => {
             expect(await driver.get('name')).toBeUndefined();
             expect(await driver.get('tags')).toBeUndefined();
             expect(await driver.get('age')).toBe(30);
-        });
-    });
-
-
-    describe('keys', () => {
-        it('returns all keys without prefix', async () => {
-            await driver.set('name', 'alice');
-            await driver.set('age', 30);
-
-            let result = await driver.keys();
-
-            expect(result.sort()).toEqual(['age', 'name']);
-        });
-
-        it('returns empty array when empty', async () => {
-            expect(await driver.keys()).toEqual([]);
         });
     });
 
@@ -211,8 +180,8 @@ describe('LocalStorageDriver', () => {
 
             expect(await driverA.get('name')).toBe('alice');
             expect(await driverB.get('name')).toBe('bob');
-            expect(await driverA.count()).toBe(1);
-            expect(await driverB.count()).toBe(1);
+            expect(await driverA.all()).toEqual({ name: 'alice' });
+            expect(await driverB.all()).toEqual({ name: 'bob' });
         });
     });
 
@@ -324,7 +293,7 @@ describe('LocalStorageDriver', () => {
             await driver.set('name', 'bob');
 
             expect(await driver.get('name')).toBe('bob');
-            expect(await driver.count()).toBe(1);
+            expect(await driver.all()).toEqual({ name: 'bob' });
         });
 
         it('returns false when setItem throws', async () => {

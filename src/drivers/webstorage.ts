@@ -79,18 +79,6 @@ class WebStorageDriver<T> implements Driver<T> {
         }
     }
 
-    async count(): Promise<number> {
-        let count = 0;
-
-        for (let i = 0, n = this.storage.length; i < n; i++) {
-            if (this.storage.key(i)?.startsWith(this.prefix)) {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
     async delete(keys: (keyof T)[]): Promise<void> {
         for (let i = 0, n = keys.length; i < n; i++) {
             this.storage.removeItem(this.key(keys[i]));
@@ -99,10 +87,6 @@ class WebStorageDriver<T> implements Driver<T> {
 
     async get(key: keyof T): Promise<T[keyof T] | undefined> {
         return this.parse(this.storage.getItem(this.key(key))) as T[keyof T] | undefined;
-    }
-
-    async keys(): Promise<(keyof T)[]> {
-        return this.getKeys() as (keyof T)[];
     }
 
     async map(fn: (value: T[keyof T], key: keyof T, i: number) => void | Promise<void>): Promise<void> {

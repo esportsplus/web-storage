@@ -47,7 +47,6 @@ describe('IndexedDBDriver', () => {
             await driver.set('age', 25);
             await driver.clear();
 
-            expect(await driver.count()).toBe(0);
             expect(await driver.all()).toEqual({});
         });
     });
@@ -57,7 +56,7 @@ describe('IndexedDBDriver', () => {
         it('creates database and object store', async () => {
             let driver = new IndexedDBDriver<TestData>(uid(), 1);
 
-            expect(await driver.count()).toBe(0);
+            expect(await driver.all()).toEqual({});
         });
 
         it('reuses connection for same name+version', async () => {
@@ -68,26 +67,6 @@ describe('IndexedDBDriver', () => {
             await a.set('name', 'alice');
 
             expect(await b.get('name')).toBe('alice');
-        });
-    });
-
-
-    describe('count', () => {
-        it('returns 0 when empty', async () => {
-            let driver = new IndexedDBDriver<TestData>(uid(), 1);
-
-            expect(await driver.count()).toBe(0);
-        });
-
-        it('returns correct count of stored items', async () => {
-            let db = uid(),
-                driver = new IndexedDBDriver<TestData>(db, 1);
-
-            await driver.set('name', 'alice');
-            await driver.set('age', 30);
-            await driver.set('tags', ['a', 'b']);
-
-            expect(await driver.count()).toBe(3);
         });
     });
 
@@ -112,28 +91,7 @@ describe('IndexedDBDriver', () => {
             expect(await driver.get('name')).toBeUndefined();
             expect(await driver.get('tags')).toBeUndefined();
             expect(await driver.get('age')).toBe(30);
-            expect(await driver.count()).toBe(1);
-        });
-    });
-
-
-    describe('keys', () => {
-        it('returns all keys', async () => {
-            let db = uid(),
-                driver = new IndexedDBDriver<TestData>(db, 1);
-
-            await driver.set('name', 'alice');
-            await driver.set('age', 30);
-
-            let keys = await driver.keys();
-
-            expect(keys.sort()).toEqual(['age', 'name']);
-        });
-
-        it('returns empty array when empty', async () => {
-            let driver = new IndexedDBDriver<TestData>(uid(), 1);
-
-            expect(await driver.keys()).toEqual([]);
+            expect(await driver.all()).toEqual({ age: 30 });
         });
     });
 
@@ -226,7 +184,7 @@ describe('IndexedDBDriver', () => {
             expect(await driver.get('name')).toBe('bob');
             expect(await driver.get('age')).toBe(42);
             expect(await driver.get('tags')).toEqual(['x', 'y']);
-            expect(await driver.count()).toBe(3);
+            expect(await driver.all()).toEqual({ age: 42, name: 'bob', tags: ['x', 'y'] });
         });
     });
 
@@ -240,7 +198,7 @@ describe('IndexedDBDriver', () => {
             await driver.set('name', 'bob');
 
             expect(await driver.get('name')).toBe('bob');
-            expect(await driver.count()).toBe(1);
+            expect(await driver.all()).toEqual({ name: 'bob' });
         });
 
         it('returns true on successful set', async () => {

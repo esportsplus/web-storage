@@ -4,10 +4,8 @@ import { DriverType } from './constants';
 interface Driver<T> {
     all(): Promise<T>;
     clear(): Promise<void>;
-    count(): Promise<number>;
     delete(keys: (keyof T)[]): Promise<void>;
     get(key: keyof T): Promise<T[keyof T] | undefined>;
-    keys(): Promise<(keyof T)[]>;
     map(fn: (value: T[keyof T], key: keyof T, i: number) => void | Promise<void>): Promise<void>;
     only(keys: (keyof T)[]): Promise<Map<keyof T, T[keyof T]>>;
     replace(entries: [keyof T, T[keyof T]][]): Promise<void>;

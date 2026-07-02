@@ -36,10 +36,6 @@ class MemoryDriver<T> implements Driver<T> {
         this.store.clear();
     }
 
-    async count(): Promise<number> {
-        return this.store.size;
-    }
-
     async delete(keys: (keyof T)[]): Promise<void> {
         for (let i = 0, n = keys.length; i < n; i++) {
             this.store.delete(keys[i]);
@@ -48,10 +44,6 @@ class MemoryDriver<T> implements Driver<T> {
 
     async get(key: keyof T): Promise<T[keyof T] | undefined> {
         return this.store.get(key);
-    }
-
-    async keys(): Promise<(keyof T)[]> {
-        return [...this.store.keys()];
     }
 
     async map(fn: (value: T[keyof T], key: keyof T, i: number) => void | Promise<void>): Promise<void> {

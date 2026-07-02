@@ -40,7 +40,6 @@ describe('MemoryDriver', () => {
             await driver.set('age', 30);
             await driver.clear();
 
-            expect(await driver.count()).toBe(0);
             expect(await driver.all()).toEqual({});
         });
     });
@@ -50,21 +49,7 @@ describe('MemoryDriver', () => {
         it('creates with empty store', async () => {
             let d = new MemoryDriver<TestData>('myapp', 2);
 
-            expect(await d.count()).toBe(0);
-        });
-    });
-
-
-    describe('count', () => {
-        it('returns 0 when empty', async () => {
-            expect(await driver.count()).toBe(0);
-        });
-
-        it('returns correct count of stored items', async () => {
-            await driver.set('name', 'alice');
-            await driver.set('age', 30);
-
-            expect(await driver.count()).toBe(2);
+            expect(await d.all()).toEqual({});
         });
     });
 
@@ -109,22 +94,6 @@ describe('MemoryDriver', () => {
             await driverA.set('name', 'alice');
 
             expect(await driverB.get('name')).toBe('alice');
-        });
-    });
-
-
-    describe('keys', () => {
-        it('returns all keys', async () => {
-            await driver.set('name', 'alice');
-            await driver.set('age', 30);
-
-            let result = await driver.keys();
-
-            expect(result.sort()).toEqual(['age', 'name']);
-        });
-
-        it('returns empty array when empty', async () => {
-            expect(await driver.keys()).toEqual([]);
         });
     });
 
@@ -214,7 +183,7 @@ describe('MemoryDriver', () => {
             await driver.set('name', 'bob');
 
             expect(await driver.get('name')).toBe('bob');
-            expect(await driver.count()).toBe(1);
+            expect(await driver.all()).toEqual({ name: 'bob' });
         });
 
         it('returns true on successful set', async () => {
