@@ -2,12 +2,11 @@ type CompressCtx = { bitsInBuffer: number; buffer: number; numBits: number; outp
 type DecompressCtx = { bitPos: number; compressed: string; currentValue: number; pos: number };
 
 
+let CHUNK = 8192;
 let MAX_DECOMPRESSED_SIZE = 10_485_760;
 
 
-function emitLiteral(ctx: CompressCtx, ch: string) {
-    let code = ch.charCodeAt(0);
-
+function emitLiteralCode(ctx: CompressCtx, code: number) {
     if (code < 256) {
         writeBits(ctx, ctx.numBits, 0);
         writeBits(ctx, 8, code);
@@ -21,7 +20,7 @@ function emitLiteral(ctx: CompressCtx, ch: string) {
 function readBits(ctx: DecompressCtx, n: number): number {
     let result = 0;
 
-    for (let i = 0; i < n; i++) {
+    while (n > 0) {
         if (ctx.bitPos > 15) {
             if (ctx.pos >= ctx.compressed.length) {
                 throw new Error('LZ: unexpected end of compressed data');
@@ -31,17 +30,47 @@ function readBits(ctx: DecompressCtx, n: number): number {
             ctx.bitPos = 0;
         }
 
-        result = (result << 1) | ((ctx.currentValue >> (15 - ctx.bitPos)) & 1);
-        ctx.bitPos++;
+        let take = 16 - ctx.bitPos;
+
+        if (take > n) {
+            take = n;
+        }
+
+        result = (result << take) | ((ctx.currentValue >> (16 - ctx.bitPos - take)) & ((1 << take) - 1));
+        ctx.bitPos += take;
+        n -= take;
     }
 
     return result;
 }
 
+function toStringChunked(output: number[]): string {
+    let n = output.length;
+
+    if (n <= CHUNK) {
+        return String.fromCharCode(...output);
+    }
+
+    let parts: string[] = [];
+
+    for (let i = 0; i < n; i += CHUNK) {
+        parts.push(String.fromCharCode(...output.slice(i, i + CHUNK)));
+    }
+
+    return parts.join('');
+}
+
 function writeBits(ctx: CompressCtx, n: number, value: number) {
-    for (let i = n - 1; i >= 0; i--) {
-        ctx.buffer = (ctx.buffer << 1) | ((value >> i) & 1);
-        ctx.bitsInBuffer++;
+    while (n > 0) {
+        let take = 16 - ctx.bitsInBuffer;
+
+        if (take > n) {
+            take = n;
+        }
+
+        ctx.buffer = (ctx.buffer << take) | ((value >> (n - take)) & ((1 << take) - 1));
+        ctx.bitsInBuffer += take;
+        n -= take;
 
         if (ctx.bitsInBuffer === 16) {
             ctx.output.push(ctx.buffer + 1);
@@ -57,49 +86,51 @@ const compress = (input: string): string => {
         return '';
     }
 
+    // Dictionary keyed by numeric composite wKey * 65536 + charCode (exact in float64):
+    // wKey is the char code (0..65535) when w is a single char, else 65536 + dictCode for a
+    // dictionary entry. Ranges never overlap, so (wKey, cCode) uniquely identifies the string w + c.
     let ctx: CompressCtx = { bitsInBuffer: 0, buffer: 0, numBits: 2, output: [] },
         dictSize = 3,
-        dictionary = new Map<string, number>(),
-        w = '';
+        dictionary = new Map<number, number>(),
+        wCode = -1,
+        wKey = input.charCodeAt(0);
 
-    for (let i = 0, n = input.length; i < n; i++) {
-        let c = input[i],
-            wc = w + c;
+    for (let i = 1, n = input.length; i < n; i++) {
+        let cCode = input.charCodeAt(i),
+            composite = wKey * 65536 + cCode,
+            hit = dictionary.get(composite);
 
-        if (dictionary.has(wc)) {
-            w = wc;
+        if (hit !== undefined) {
+            wCode = hit;
+            wKey = 65536 + hit;
             continue;
         }
 
-        if (w.length > 0) {
-            if (dictionary.has(w)) {
-                writeBits(ctx, ctx.numBits, dictionary.get(w)!);
-            }
-            else {
-                emitLiteral(ctx, w);
-            }
-
-            dictionary.set(wc, dictSize++);
-
-            if (dictSize > (1 << ctx.numBits)) {
-                ctx.numBits++;
-            }
-        }
-
-        w = c;
-    }
-
-    if (w.length > 0) {
-        if (dictionary.has(w)) {
-            writeBits(ctx, ctx.numBits, dictionary.get(w)!);
+        if (wCode >= 0) {
+            writeBits(ctx, ctx.numBits, wCode);
         }
         else {
-            emitLiteral(ctx, w);
+            emitLiteralCode(ctx, wKey);
         }
+
+        dictionary.set(composite, dictSize++);
+
+        if (dictSize > (1 << ctx.numBits)) {
+            ctx.numBits++;
+        }
+
+        wCode = -1;
+        wKey = cCode;
     }
 
-    // Trailing dict advance: ensures the decompressor's last placeholder growth
-    // matches (the decompressor will push a placeholder before reading EOF)
+    if (wCode >= 0) {
+        writeBits(ctx, ctx.numBits, wCode);
+    }
+    else {
+        emitLiteralCode(ctx, wKey);
+    }
+
+    // Trailing dict advance mirrors the decompressor's placeholder growth before it reads EOF.
     dictSize++;
 
     if (dictSize > (1 << ctx.numBits)) {
@@ -114,7 +145,7 @@ const compress = (input: string): string => {
 
     ctx.output.push((ctx.bitsInBuffer === 0 ? 16 : ctx.bitsInBuffer) + 1);
 
-    return String.fromCharCode(...ctx.output);
+    return toStringChunked(ctx.output);
 };
 
 const decompress = (compressed: string): string => {
@@ -147,7 +178,7 @@ const decompress = (compressed: string): string => {
         w = entry;
 
     while (true) {
-        // Reserve dict slot BEFORE reading (matches compressor's add-before-next-emit timing)
+        // Reserve the dict slot before reading, matching the compressor's add-before-next-emit timing.
         let slotIdx = dictionary.length;
 
         dictionary.push('');
