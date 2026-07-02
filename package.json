@@ -5,10 +5,10 @@
     },
     "description": "Web storage utility",
     "devDependencies": {
-        "@esportsplus/typescript": "^0.29.1",
+        "@esportsplus/typescript": "^0.29.5",
         "fake-indexeddb": "^6.2.5",
-        "happy-dom": "^20.8.9",
-        "vitest": "^4.1.4"
+        "happy-dom": "^20.10.6",
+        "vitest": "^4.1.9"
     },
     "main": "build/index.js",
     "name": "@esportsplus/web-storage",
