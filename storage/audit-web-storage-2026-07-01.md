@@ -11,18 +11,6 @@
 
 ### src/index.ts
 
-#### F-002: Local.set() always reads + deserializes the old value even with zero subscribers
-
-- **File:** src/index.ts:544-575
-- **Symbol:** `Local.set`
-- **Category:** performance
-- **Priority:** P1
-- **Evidence:** Every `set()` performs `driver.get(key)` + `deserialize` + `unwrap` solely to compute `oldValue` for `notify()` — which is a no-op when `this.globals` is empty and no key listener exists. On the localStorage driver the discarded read includes LZ decompress + `JSON.parse`. Bench (`bench-index.ts`, happy-dom localStorage, original lz in both variants, no subscribers): set 5KB compressed value 188.2 → 141.4 us/op (**-24.9%**); set small plain-JSON value 1.5 → 0.7 us/op (**-52.6%**); set on memory driver 0.4 → 0.3 us/op (**-37.2%**). Repeat run confirmed 25.5% / 53.5% / 37.4%. Correctness gate: with a subscriber registered, oldValue delivery verified intact (`v1 → undefined`, `v2 → v1`).
-- **Recommendation:** In `set()`, compute `hasSubscribers = this.globals.size > 0 || (this.listeners.get(key)?.size ?? 0) > 0`; only perform the old-value read and the `notify()` call when true (reference patch: scratchpad `bench-web-storage/patched/index.ts`). Same pattern applies unbenched to `delete()` and `replace()`, which do the equivalent `driver.only()` read for oldValues — apply there too under the same guard (global-callback check only, since keys vary).
-- **Risk:** Low. `notify()` with no listeners is already a no-op; only observable change is fewer driver reads. Subscribers registered mid-`set` race identically to today (registration between awaits was never guaranteed to see the event).
-- **LOC delta:** ~ +15 / -5 (set); ~ +12 more if extended to delete/replace
-- **Recommended-model:** sonnet
-
 #### F-003: Per-key `await deserialize()` in iteration paths when no cipher is configured
 
 - **File:** src/index.ts:22-37, 172-204 (and same pattern in cleanup/count/filter/keys/map/only/delete/replace)
