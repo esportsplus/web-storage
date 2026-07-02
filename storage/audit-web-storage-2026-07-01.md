@@ -9,20 +9,6 @@
 
 ## Findings
 
-### src/index.ts
-
-#### F-003: Per-key `await deserialize()` in iteration paths when no cipher is configured
-
-- **File:** src/index.ts:22-37, 172-204 (and same pattern in cleanup/count/filter/keys/map/only/delete/replace)
-- **Symbol:** `deserialize`, `Local.all`
-- **Category:** performance
-- **Priority:** P2
-- **Evidence:** `deserialize()` is async, but with no `secret` the cipher is `null` and it just returns the value — yet every key in `all()`/`map()`-based methods pays a promise allocation + microtask per entry. Bench (`bench-index.ts`, memory driver, 1000 keys, cipher null, sync fast-path in `all()` only): `all()` 177.5 → 129.7 us/op (**-26.9%**); repeat run 116.0 → 87.8 us/op (**-24.3%**).
-- **Recommendation:** Fast-path the cipher-null case without awaiting: at call sites (or via a sync `deserialize` variant that returns `V | undefined` directly and is only awaited when `this.cipher` is set), use the raw value after the existing null/undefined check. Apply across the iteration-heavy methods (`all`, `cleanup`, `count`, `filter`, `keys`, `map`, `only`, `delete`, `replace`, plus `get`/`set`/`persist`/`ttl` for consistency). Preserve exact semantics: `null`/`undefined` → `undefined`; with cipher, failed decrypt still → `undefined`. Reference: scratchpad `bench-web-storage/patched/index.ts` (`all()` only).
-- **Risk:** Low-medium: touches many call sites in one file; semantics must stay identical (the `null → undefined` mapping is load-bearing for TTL/missing-key logic). Gains are largest on memory driver; real-storage drivers see smaller relative wins since I/O dominates.
-- **LOC delta:** ~ +30 / -15
-- **Recommended-model:** opus
-
 ### src/lz.ts
 
 #### F-001: LZ codec — bit-at-a-time I/O, string-concat dictionary keys, and stack-overflowing output build
