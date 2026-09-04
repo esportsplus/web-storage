@@ -19,11 +19,10 @@
         "url": "https://github.com/esportsplus/web-storage"
     },
     "scripts": {
-        "build": "tsc && tsc-alias",
-        "test": "vitest run",
-        "-": "-",
-        "prepare": "pnpm build",
-        "prepublishOnly": "pnpm build"
+        "build": "tsc -p tsconfig.build.json",
+        "build:test": "pnpm build && pnpm test",
+        "prepublishOnly": "pnpm build",
+        "test": "vitest run"
     },
     "type": "module",
     "types": "build/index.d.ts",
