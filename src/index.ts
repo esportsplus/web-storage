@@ -373,7 +373,7 @@ class Local<T> {
             if (factory) {
                 let value = await factory();
 
-                this.set(key, value);
+                await this.set(key, value);
 
                 return value;
             }
