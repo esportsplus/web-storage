@@ -1,7 +1,8 @@
 minimumReleaseAgeExclude:
-  - '@esportsplus/typescript@0.33.4'
-  - '@esportsplus/utilities@0.28.1'
+  - '@esportsplus/utilities@0.28.1 || 0.28.3'
+  - '@esportsplus/typescript@0.33.4 || 0.34.1'
   - '@vitest/mocker@5.0.0'
   - '@vitest/spy@5.0.0'
   - happy-dom@20.14.0
   - vitest@5.0.0
+  - '@esportsplus/cli-passthrough@0.0.18'
