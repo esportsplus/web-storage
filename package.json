@@ -5,7 +5,7 @@
     },
     "description": "Web storage utility",
     "devDependencies": {
-        "@esportsplus/typescript": "^0.34.4",
+        "@esportsplus/typescript": "^0.41.0",
         "@types/node": "^26.4.1",
         "fake-indexeddb": "^6.2.5",
         "happy-dom": "^20.14.0",
